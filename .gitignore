@@ -1,0 +1,4 @@
+.myosa/
+*.bak
+__pycache__/
+.env
