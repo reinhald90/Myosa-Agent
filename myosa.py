@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# MYOSACODE AGENT v1.3.0
+# MYOSACODE AGENT v3.0.0
 import os, sys, re, io, json, glob, time, base64, shlex, difflib, atexit, subprocess, select
 try:
     import readline
