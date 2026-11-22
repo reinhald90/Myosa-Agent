@@ -28,7 +28,7 @@ try:
 except Exception:
     HAS_PIL = False
 
-VERSION = "3.0.0"
+VERSION = "4.0.0"
 console = Console()
 CFG_DIR = os.path.expanduser("~/.myosa")
 CFG_FILE = os.path.join(CFG_DIR, "config.json")
@@ -2597,6 +2597,687 @@ def read_input():
         user_shell(q[1:])
         return ""
     return q
+
+
+# ---------- V4.0 ----------
+import textwrap
+CMDS.extend(["/deep", "/hidup", "/doctor", "/plugin", "/evolve", "/rollback"])
+DEEP = int(CFG.get("deep", 2))
+LIVE = bool(CFG.get("live", True))
+DEEP_NAMES = {1: "normal", 2: "dalam", 3: "ekstrem"}
+DEEP_STEPS = {1: 25, 2: 30, 3: 45}
+if DEEP not in DEEP_NAMES:
+    DEEP = 2
+MAX_STEPS = DEEP_STEPS[DEEP]
+MYOSA_FILE = os.path.abspath(__file__)
+PLUGIN_DIR = os.path.join(CFG_DIR, "plugins")
+BACKUP_DIR = os.path.join(CFG_DIR, "backup")
+os.makedirs(PLUGIN_DIR, exist_ok=True)
+STEP_NO = 0
+TIP_I = 0
+CTX_LIMIT = 90000
+
+def save_cfg():
+    try:
+        json.dump({"model": MODEL, "auto": AUTO, "key": CFG_KEY, "engine": ENGINE, "mode": MODE,
+                   "guard": GUARD, "anim": ANIM_IDX, "shield": SHIELD_ON, "deep": DEEP, "live": LIVE},
+                  open(CFG_FILE, "w"))
+        os.chmod(CFG_FILE, 0o600)
+    except Exception:
+        pass
+
+# ================= MYOSA HIDUP: bicara real time =================
+FACE = {"think": "(°_°)", "code": "(■_■)", "write": "(^_^)", "wait": "(•_•)", "blink": "(-_-)"}
+
+def typewriter(text, color="#e6ebff"):
+    if not sys.stdout.isatty():
+        sys.stdout.write(text + "\n")
+        return
+    delay = min(0.02, 2.5 / max(1, len(text)))
+    for ch in text:
+        sys.stdout.write(_fg(color) + ch + RST)
+        sys.stdout.flush()
+        time.sleep(delay)
+    sys.stdout.write("\n")
+    sys.stdout.flush()
+
+def say(text, mood="write"):
+    sys.stdout.write("\n" + _fg("#00e0ff") + "\033[1m" + FACE[mood] + RST + " " + _fg("#a06bff") + "Myosa ▸ " + RST)
+    typewriter(text)
+
+def greet():
+    h = int(time.strftime("%H"))
+    sal = "Selamat pagi" if 4 <= h < 11 else "Selamat siang" if h < 15 else "Selamat sore" if h < 19 else "Selamat malam"
+    bits = []
+    if not API_KEY:
+        bits.append("API key belum ada, ketik /key.")
+    elif AUTH is False:
+        bits.append("Key ditolak router, coba /key atau pilih model lain di /model.")
+    if not CONNECTED:
+        bits.append("Router belum terhubung, coba /doctor.")
+    if ALERTS:
+        bits.append(f"Shield mencatat {len(ALERTS)} peringatan, ketik /shield alerts.")
+    say(f"{sal}, aku Myosa. " + (" ".join(bits) or "Semua siap. Ceritakan saja apa yang mau dikerjakan, atau ketik /help kalau bingung."))
+
+def pick_tip():
+    global TIP_I
+    tips = []
+    if not API_KEY:
+        tips.append("API key belum ada. Ketik /key untuk memasukkannya.")
+    if not HEALTH:
+        tips.append("Coba /health supaya aku tahu model mana yang hidup.")
+    tips += ["Bingung? Ceritakan saja masalahmu, aku bantu pandu pelan-pelan.",
+             "Ketik /help untuk melihat semua perintah.",
+             "!ls atau !df -h menjalankan shell langsung tanpa keluar dari Myosa.",
+             "/shield status menunjukkan skor keamanan VPS-mu.",
+             "/deep ekstrem: aku berpikir lebih keras untuk tugas rumit.",
+             "Mau fitur baru? Ketik /evolve lalu ceritakan fiturnya.",
+             "/doctor memeriksa semua komponen Myosa sekaligus."]
+    TIP_I += 1
+    return tips[TIP_I % len(tips)]
+
+class Idle(threading.Thread):
+    def __init__(self):
+        super().__init__(daemon=True)
+        self.stop = threading.Event()
+    def run(self):
+        for wait in (25, 40, 70, 120):
+            if self.stop.wait(wait):
+                return
+            try:
+                if readline and readline.get_line_buffer().strip():
+                    continue
+            except Exception:
+                pass
+            self.speak(pick_tip())
+    def speak(self, tip):
+        out = sys.stdout
+        tip = tip[: max(10, console.width - 12)]
+        out.write("\x1b7\x1b[1B\r\x1b[2K" + _fg("#a06bff") + " (•_•) " + RST)
+        for ch in tip:
+            if self.stop.is_set():
+                break
+            out.write(_fg("#e6ebff") + ch + RST)
+            out.flush()
+            time.sleep(0.02)
+        out.write("\x1b8")
+        out.flush()
+
+CONF_RX = re.compile(r"(bingung|binggung|ga ngerti|gak ngerti|nggak ngerti|tidak ngerti|tidak mengerti|gimana caranya|bagaimana caranya|mulai dari mana|apa ini|ini apa|maksudnya apa|kok gini)", re.I)
+
+def is_confused(q):
+    s = q.strip().lower()
+    if s in ("tolong", "bantu", "bantuin", "help", "?", "??", "hah", "apa", "gimana"):
+        return True
+    return len(s.split()) <= 8 and bool(CONF_RX.search(s))
+
+def about_myosa():
+    t = Text()
+    for k, v in [("Menulis & mengedit kode", "buat file, edit dengan diff, uji, perbaiki"),
+                 ("Mengelola VPS", "shell menetap, install layanan, cek log (semua dengan izinmu)"),
+                 ("Melindungi VPS", "/shield: skor, watcher, hardening, blokir IP"),
+                 ("Berpikir dalam", "/deep: rencana, antisipasi gagal, verifikasi mandiri"),
+                 ("Fitur baru sendiri", "/evolve: Myosa menulis plugin untukmu"),
+                 ("Memeriksa dirinya", "/doctor, /health, auto-failover model")]:
+        t.append(f" ◆ {k}: ", style="bold #00e0ff")
+        t.append(v + "\n")
+    console.print(Panel(t, title="Yang bisa Myosa lakukan", border_style="#6a8cff"))
+
+def confused_flow(q):
+    say("Tenang, aku bantu pelan-pelan. Kamu maunya bagaimana?", "think")
+    items = [("Pandu aku langkah demi langkah", "guide"),
+             ("Jelaskan apa saja yang bisa Myosa lakukan", "about"),
+             ("Periksa kondisi Myosa (/doctor)", "doctor"),
+             ("Cek keamanan VPS (/shield)", "shield"),
+             ("Kirim pertanyaanku apa adanya ke agent", "send")]
+    if not (sys.stdin.isatty() and termios):
+        return q
+    r, v = menu("Myosa bisa bantu apa?", items)
+    if r != "pick":
+        return ""
+    if v == "guide":
+        return ("Pengguna tampak bingung. Katanya: '" + q + "'. Jangan langsung mengerjakan. Tanyakan tujuannya "
+                "lewat ask_user (3-4 pilihan), lalu pandu langkah demi langkah dengan bahasa sederhana, satu langkah per giliran.")
+    if v == "about":
+        about_myosa()
+    elif v == "doctor":
+        doctor()
+    elif v == "shield":
+        shield_status()
+    else:
+        return q
+    return ""
+
+_read_input_v3 = read_input
+def read_input():
+    if not LIVE or not sys.stdin.isatty():
+        q = _read_input_v3()
+    else:
+        idle = Idle()
+        idle.start()
+        try:
+            q = _read_input_v3()
+        finally:
+            idle.stop.set()
+    if LIVE and q and not q.startswith(("/", "!")) and is_confused(q):
+        return confused_flow(q)
+    return q
+
+# ================= TAMPILAN BERPIKIR ALA KOMPUTER =================
+def pj_field(s, key):
+    m = re.search(r'"%s"\s*:\s*"' % re.escape(key), s)
+    if not m:
+        return None
+    i, out = m.end(), []
+    while i < len(s):
+        c = s[i]
+        if c == "\\":
+            if i + 1 >= len(s):
+                break
+            n = s[i + 1]
+            if n == "u":
+                hx = s[i + 2:i + 6]
+                if len(hx) < 4:
+                    break
+                try:
+                    out.append(chr(int(hx, 16)))
+                except Exception:
+                    pass
+                i += 6
+                continue
+            out.append({"n": "\n", "t": "\t", "r": "\r", "b": "\b", "f": "\f"}.get(n, n))
+            i += 2
+            continue
+        if c == '"':
+            break
+        out.append(c)
+        i += 1
+    return "".join(out)
+
+def ext_lexer(path):
+    ext = os.path.splitext(path or "")[1].lower()
+    return {".py": "python", ".js": "javascript", ".ts": "typescript", ".json": "json", ".sh": "bash",
+            ".md": "markdown", ".html": "html", ".css": "css", ".yml": "yaml", ".yaml": "yaml",
+            ".sql": "sql", ".conf": "ini", ".ini": "ini", ".go": "go", ".rs": "rust", ".c": "c",
+            ".java": "java"}.get(ext, "text")
+
+def _wrap_tail(s, width, n):
+    out = []
+    for para in s[-4000:].split("\n"):
+        out += textwrap.wrap(para, max(10, width)) or [""]
+    return out[-n:]
+
+def _code_block(call, el, rows):
+    name, args = call.get("name") or "", call.get("args") or ""
+    path = pj_field(args, "path")
+    if name == "write_file":
+        body, title, lex = pj_field(args, "content") or "", "✎ tulis " + (path or "…"), ext_lexer(path)
+    elif name == "edit_file":
+        body, title, lex = pj_field(args, "new") or "", "✎ edit " + (path or "…"), ext_lexer(path)
+    elif name in ("bash", "shell", "ssh"):
+        body, title, lex = pj_field(args, "cmd") or "", "$ " + name, "bash"
+    elif name:
+        body, title, lex = args, "⚙ " + name, "json"
+    else:
+        return None
+    lines = body.split("\n")
+    total = len(lines)
+    view = lines[-rows:]
+    if int(el * 3) % 2 == 0:
+        view[-1] = view[-1] + "█"
+    start = total - len(view) + 1
+    syn = Syntax("\n".join(view), lex, theme="monokai", line_numbers=True, start_line=start,
+                 word_wrap=True, background_color="default")
+    return Panel(syn, title=Text(f" {title} · {total} baris ", style="bold #50fa7b"), title_align="left",
+                 border_style="#2f6b4f", padding=(0, 1))
+
+def render(think, text, calls, t0):
+    el = time.time() - t0
+    H, W = console.height, console.width
+    if _ANIM["t0"] != t0:
+        _ANIM["t0"] = t0
+        _ANIM["i"] = ANIM_IDX if 0 <= ANIM_IDX < 8 else random.randrange(8)
+    ai = _ANIM["i"]
+    call = list(calls.values())[-1] if calls else None
+    if call and call.get("name"):
+        mood = "code"
+        phase = "menulis kode" if call["name"] in ("write_file", "edit_file") else "menyiapkan " + call["name"]
+    elif text:
+        mood, phase = "write", "menyusun jawaban"
+    elif think:
+        mood, phase = "think", PHRASES[int(el * 0.5) % len(PHRASES)]
+    else:
+        mood, phase = "wait", "menghubungi model"
+    face = FACE["blink"] if int(el * 10) % 34 < 3 else FACE[mood]
+    budget = max(8, H - 10)
+    rows_code = max(4, min(14, budget - 8))
+    rows_think = max(2, min(8, budget // 3))
+    tokens = (len(think) + len(text) + sum(len(c.get("args", "")) for c in calls.values())) // 4
+    cur = int(el * 3) % 2 == 0
+    parts = [Text(f"$ myosa --think --deep={DEEP} --model={MODEL.split('/')[-1]}", style="#50fa7b")]
+    head = Text()
+    head.append(face + " ", style="bold #00e0ff")
+    head.append(phase, style="bold #e6ebff")
+    head.append(f"  ·  {el:.0f}s", style="dim")
+    parts += [head, Text("")]
+    if think:
+        lines = _wrap_tail(think, W - 10, rows_think)
+        t = Text()
+        for i, ln in enumerate(lines):
+            t.append("▸ ", style="#6a8cff")
+            t.append(ln, style="#a6b0d8")
+            if i == len(lines) - 1 and not text and not call and cur:
+                t.append("█", style="bold #00e0ff")
+            if i < len(lines) - 1:
+                t.append("\n")
+        parts += [Text("── pikiran ──", style="dim #6a8cff"), t, Text("")]
+    if text:
+        lines = _wrap_tail(text, W - 10, 5)
+        t = Text()
+        for i, ln in enumerate(lines):
+            t.append("◆ ", style="#a06bff")
+            t.append(ln, style="#e6ebff")
+            if i == len(lines) - 1 and not call and cur:
+                t.append("█", style="bold #00e0ff")
+            if i < len(lines) - 1:
+                t.append("\n")
+        parts += [Text("── ucapan ──", style="dim #a06bff"), t, Text("")]
+    if call:
+        blk = _code_block(call, el, rows_code)
+        if blk:
+            parts.append(blk)
+    parts.append(ANIMS[ai](el))
+    title = Text.assemble(("● ", "#ff5f56"), ("● ", "#ffbd2e"), ("● ", "#27c93f"), (" myosa-core ", "bold #e6ebff"))
+    return Panel(Group(*parts), title=title, title_align="left",
+                 subtitle=Text(f"langkah {STEP_NO} · ~{tokens} token", style="dim"), subtitle_align="right",
+                 border_style="#6a8cff", padding=(0, 1))
+
+# ================= BERPIKIR DALAM =================
+DEEP_TEXT = """
+## Mode BERPIKIR DALAM
+Kerjakan dengan teliti dan sistematis. Sebelum bertindak:
+1. Rumuskan tujuan akhir dan kriteria "selesai".
+2. Daftar asumsi, lalu verifikasi lewat tool. Jangan menebak.
+3. Pertimbangkan minimal dua pendekatan, pilih satu dengan alasan.
+4. Antisipasi tiga kemungkinan gagal dan cara mendeteksinya.
+5. Kerjakan bertahap dan uji setelah tiap perubahan.
+6. Sebelum menyatakan selesai, cocokkan hasil dengan kriteria. Jangan mengklaim berhasil tanpa bukti dari output tool.
+7. Tulis kode lengkap, bisa dijalankan, dan menangani error. Tanpa placeholder atau "TODO".
+"""
+DEEP_EXTREME = """
+- Level EKSTREM: untuk tugas non-trivial WAJIB propose_plan dulu. Rancang fungsi dan kasus tepi dalam pikiranmu sebelum menulis kode. Setelah selesai, jalankan uji nyata dan laporkan hasilnya apa adanya.
+"""
+LIVE_TEXT = """
+## Myosa hidup
+- Kamu hangat, sabar, dan ringkas. Sebelum tiap tool, tulis SATU kalimat singkat (Indonesia) tentang apa yang akan kamu lakukan dan kenapa.
+- Jika user tampak bingung (pertanyaan kabur, error berulang), jangan langsung mengerjakan: tanyakan tujuannya lewat ask_user (3-4 pilihan), lalu pandu langkah demi langkah dengan bahasa sederhana.
+- Beri kabar jujur: apa yang sudah terbukti berhasil dan apa yang belum teruji.
+"""
+PLUGIN_TEXT = "\n## Fitur baru\nFitur baru dibuat sebagai PLUGIN di ~/.myosa/plugins (lihat /evolve). JANGAN mengedit myosa.py.\n"
+
+_sp_v3 = system_prompt
+def system_prompt():
+    s = _sp_v3()
+    if DEEP >= 2:
+        s += DEEP_TEXT + (DEEP_EXTREME if DEEP >= 3 else "")
+    if LIVE:
+        s += LIVE_TEXT
+    return s + PLUGIN_TEXT
+
+REFLECT = ("[Pemeriksaan diri otomatis] Sebelum selesai: periksa ulang pekerjaanmu terhadap tujuan awal user. "
+           "Verifikasi dengan tool bila perlu (baca ulang file, jalankan, cek exit code). Jika ada yang kurang atau salah, "
+           "perbaiki sekarang. Jika semua benar, jawab singkat: apa yang terbukti berhasil dan apa yang belum teruji.")
+
+_run_turn_v3 = run_turn
+def run_turn(msgs):
+    global STEP_NO
+    STEP_NO = 0
+    n0 = len(msgs)
+    _run_turn_v3(msgs)
+    if ENGINE == "myosa" and DEEP >= 2:
+        tools = [m for m in msgs[n0:] if m.get("role") == "tool"]
+        stopped = any(isinstance(m.get("content"), str) and m["content"].startswith(("User MENGHENTIKAN", "User MENOLAK"))
+                      for m in tools)
+        if tools and not stopped:
+            console.print(Panel("Myosa memeriksa ulang pekerjaannya sebelum menyatakan selesai...",
+                                title="🔍 verifikasi mandiri", border_style="#a06bff"))
+            msgs.append({"role": "user", "content": REFLECT})
+            _run_turn_v3(msgs)
+    check_plugins()
+
+# ================= PEMBATAS KONTEKS =================
+def _mlen(m):
+    c = m.get("content")
+    if isinstance(c, str):
+        return len(c)
+    if isinstance(c, list):
+        return sum(len(p.get("text", "")) if p.get("type") == "text" else 1000 for p in c)
+    return 0
+
+def compact(msgs):
+    total = sum(_mlen(m) for m in msgs)
+    if total <= CTX_LIMIT:
+        return
+    for m in msgs[1:max(1, len(msgs) - 8)]:
+        c = m.get("content")
+        if isinstance(c, list):
+            for p in c:
+                if p.get("type") == "image_url":
+                    p.clear()
+                    p.update({"type": "text", "text": "[gambar lama dibuang]"})
+        elif isinstance(c, str) and len(c) > 1200:
+            m["content"] = c[:700] + "\n...[dipadatkan]...\n" + c[-300:]
+        total = sum(_mlen(x) for x in msgs)
+        if total <= CTX_LIMIT:
+            break
+    console.print("[dim]↯ konteks lama dipadatkan agar tetap cepat[/]")
+
+_stream_v3 = stream_once
+def stream_once(msgs):
+    global STEP_NO
+    STEP_NO += 1
+    compact(msgs)
+    return _stream_v3(msgs)
+
+# ================= PROTEKSI INTI MYOSA =================
+CORE_RX = re.compile(r"(sed\s+-i|\btee\b|>>?|\bmv\b|\bcp\b|\brm\b|\bperl\s+-pi|\bpython3?\s+-c)[^\n;|&]*myosa\.py")
+
+def is_core(path):
+    if not path:
+        return False
+    p = P(path)
+    return p == MYOSA_FILE or os.path.basename(p) == "myosa.py"
+
+_sens_v3 = sens_check
+def sens_check(name, a):
+    hits = list(_sens_v3(name, a))
+    core = False
+    if name in ("write_file", "edit_file"):
+        core = is_core(a.get("path", ""))
+    elif name in ("bash", "shell", "ssh"):
+        core = bool(CORE_RX.search(a.get("cmd", "")))
+    if core:
+        hits.append("ubah inti Myosa")
+    return hits
+
+def backup_core():
+    try:
+        os.makedirs(BACKUP_DIR, exist_ok=True)
+        h = hashlib.sha256(open(MYOSA_FILE, "rb").read()).hexdigest()[:10]
+        if any(h in x for x in os.listdir(BACKUP_DIR)):
+            return
+        shutil.copy2(MYOSA_FILE, os.path.join(BACKUP_DIR, f"myosa-{time.strftime('%Y%m%d-%H%M%S')}-{h}.py"))
+        for x in sorted(os.listdir(BACKUP_DIR))[:-6]:
+            os.remove(os.path.join(BACKUP_DIR, x))
+    except Exception:
+        pass
+
+def rollback_cmd():
+    files = sorted(glob.glob(os.path.join(BACKUP_DIR, "myosa-*.py")), reverse=True)
+    if not files:
+        console.print("[yellow]belum ada backup[/]")
+        return
+    if not (sys.stdin.isatty() and termios):
+        console.print("\n".join(files))
+        return
+    items = [(os.path.basename(f) + "  (" + time.strftime("%d %b %H:%M", time.localtime(os.path.getmtime(f))) + ")", f)
+             for f in files]
+    r, v = menu("Pulihkan inti Myosa dari backup", items)
+    if r != "pick":
+        return
+    r2, v2 = menu(f"Timpa myosa.py dengan {os.path.basename(v)}?", [("Ya, pulihkan", "y"), ("Batal", "n")])
+    if r2 != "pick" or v2 != "y":
+        return
+    shutil.copy2(MYOSA_FILE, MYOSA_FILE + ".before-rollback")
+    shutil.copy2(v, MYOSA_FILE)
+    console.print("[green]✓ dipulihkan.[/] Keluar dengan /exit lalu jalankan myosa lagi.")
+
+# ================= PLUGIN & /evolve =================
+PLUGIN_CMDS, PLUGIN_TOOLS, PLUGIN_INFO, _PL_SEEN = {}, {}, {}, {}
+
+class PluginAPI:
+    console = console
+    def __init__(self, name):
+        self.name = name
+    def command(self, name, help=""):
+        def deco(fn):
+            PLUGIN_CMDS[name.lstrip("/")] = (fn, help, self.name)
+            return fn
+        return deco
+    def tool(self, name, description, props=None, required=None):
+        def deco(fn):
+            PLUGIN_TOOLS[name] = (T(name, description, props or {}, required or []), fn, self.name)
+            return fn
+        return deco
+    def ask(self, msg):
+        return ask(msg)
+    def run(self, cmd, timeout=60):
+        return sh(cmd, timeout)
+    def say(self, text):
+        say(text)
+
+def unload_plugins():
+    names = set(PLUGIN_TOOLS)
+    TOOLS[:] = [t for t in TOOLS if t["function"]["name"] not in names]
+    for n in names:
+        DISPATCH.pop(n, None)
+    PLUGIN_CMDS.clear()
+    PLUGIN_TOOLS.clear()
+    PLUGIN_INFO.clear()
+
+def load_plugins():
+    unload_plugins()
+    for f in sorted(glob.glob(os.path.join(PLUGIN_DIR, "*.py"))):
+        name = os.path.basename(f)[:-3]
+        try:
+            code = compile(open(f).read(), f, "exec")
+            ns = {"api": PluginAPI(name), "console": console, "Text": Text, "Panel": Panel, "escape": escape,
+                  "os": os, "sys": sys, "json": json, "time": time, "re": re, "subprocess": subprocess,
+                  "shutil": shutil, "__name__": "myosa_plugin_" + name}
+            exec(code, ns)
+            PLUGIN_INFO[name] = "ok"
+        except Exception as e:
+            PLUGIN_INFO[name] = f"error: {type(e).__name__}: {e}"
+            for k in [k for k, v in PLUGIN_CMDS.items() if v[2] == name]:
+                del PLUGIN_CMDS[k]
+            for k in [k for k, v in PLUGIN_TOOLS.items() if v[2] == name]:
+                del PLUGIN_TOOLS[k]
+            try:
+                os.replace(f, f + ".rusak")
+            except Exception:
+                pass
+    for n, (schema, fn, _) in PLUGIN_TOOLS.items():
+        TOOLS.append(schema)
+        DISPATCH[n] = fn
+    for k in PLUGIN_CMDS:
+        if "/" + k not in CMDS:
+            CMDS.append("/" + k)
+
+def check_plugins():
+    for f in glob.glob(os.path.join(PLUGIN_DIR, "*.py")):
+        mt = os.path.getmtime(f)
+        if _PL_SEEN.get(f) == mt:
+            continue
+        _PL_SEEN[f] = mt
+        nm = os.path.basename(f)
+        try:
+            compile(open(f).read(), f, "exec")
+            console.print(f"[green]✓ plugin {escape(nm)} lolos cek sintaks.[/] Ketik [bold]/plugin reload[/] untuk mengaktifkan.")
+        except Exception as e:
+            try:
+                os.replace(f, f + ".rusak")
+            except Exception:
+                pass
+            console.print(f"[red]✗ plugin {escape(nm)} rusak ({escape(str(e)[:80])}), dipindah ke .rusak. myosa tetap aman.[/]")
+
+def plugin_cmd(arg):
+    if arg == "reload":
+        load_plugins()
+    tb = Table(title="Plugin", border_style="#6a8cff")
+    for c in ("nama", "status", "command", "tool"):
+        tb.add_column(c)
+    for n, st in PLUGIN_INFO.items():
+        cmds = ", ".join("/" + k for k, v in PLUGIN_CMDS.items() if v[2] == n)
+        tls = ", ".join(k for k, v in PLUGIN_TOOLS.items() if v[2] == n)
+        tb.add_row(n, "[green]ok[/]" if st == "ok" else "[red]" + escape(st[:50]) + "[/]", cmds or "-", tls or "-")
+    if not PLUGIN_INFO:
+        console.print(f"[yellow]belum ada plugin.[/] Folder: {PLUGIN_DIR}\nBuat satu dengan [bold]/evolve <fitur yang kamu mau>[/]")
+    else:
+        console.print(tb)
+    rusak = glob.glob(os.path.join(PLUGIN_DIR, "*.rusak"))
+    if rusak:
+        console.print(f"[dim]{len(rusak)} plugin rusak dikarantina (.rusak)[/]")
+
+EVOLVE_GUIDE = """Tugas: buat PLUGIN Myosa baru untuk permintaan user. ATURAN KETAT:
+1. JANGAN mengedit myosa.py. Tulis hanya ke ~/.myosa/plugins/<nama>.py (huruf kecil, tanpa spasi).
+2. Panggil propose_plan dulu dan tunggu persetujuan user.
+3. Plugin adalah file Python biasa. Variabel `api` dan `console` sudah tersedia otomatis. API:
+   @api.command("nama", "bantuan")   def fn(arg, msgs): ...        -> menambah command /nama
+   @api.tool("nama_tool", "deskripsi", {"param": ("string", "deskripsi")}, ["param"])   def fn(a): ... return "teks hasil"
+   api.ask("pertanyaan?") -> True/False (persetujuan user) ; api.run("perintah", timeout) -> (kode, output) ; api.say("teks")
+4. Tool yang mengubah sistem WAJIB memanggil api.ask() dulu.
+5. Setelah menulis, uji sintaks lewat tool shell: python3 -c "compile(open('PATH').read(),'PATH','exec')". Lalu minta user mengetik /plugin reload.
+Permintaan user: """
+
+# ================= DOCTOR =================
+def doctor():
+    rows = []
+    def add(n, ok, d, fix=""):
+        rows.append((n, ok, d, fix))
+    add("Python", sys.version_info >= (3, 9), sys.version.split()[0], "pakai Python 3.9+")
+    for mod, pipn in (("openai", "openai"), ("rich", "rich"), ("PIL", "pillow")):
+        try:
+            __import__(mod)
+            add(f"modul {mod}", True, "terpasang")
+        except Exception:
+            add(f"modul {mod}", None if mod == "PIL" else False, "tidak ada", f"~/myosa-env/bin/pip install {pipn}")
+    add("API key", bool(API_KEY), (API_KEY[:6] + "…" + API_KEY[-4:]) if API_KEY else "kosong", "/key")
+    err, nm, router, ak = "", 0, False, None
+    with console.status("[cyan]memeriksa router dan key...[/]", spinner="dots2"):
+        try:
+            nm = len(fetch_models(True))
+            router = True
+        except Exception as e:
+            err = str(e)[:50]
+        if router and API_KEY:
+            ak = check_key()
+    add("Router", router, f"{nm} model" if router else err, "router sedang bermasalah, coba lagi nanti")
+    add("Key diterima router", ak, {True: "valid", False: "ditolak (401)", None: "belum bisa dipastikan"}[ak],
+        "/key, atau pilih model lain di /model")
+    oc = shutil.which("opencode")
+    add("OpenCode (engine kedua)", True if oc else None, oc or "tidak ditemukan", "opsional")
+    intmux = bool(os.environ.get("TMUX"))
+    add("tmux", True if intmux else None,
+        "sedang di dalam tmux" if intmux else ("terpasang, belum dipakai" if shutil.which("tmux") else "tidak ada"),
+        "tmux new -s myosa")
+    _, ufw = sh("ufw status 2>&1 | head -n1")
+    add("Firewall ufw", "Status: active" in ufw, ufw[:40] or "tidak ada", "/shield harden")
+    _, f2b = sh("systemctl is-active fail2ban 2>&1")
+    add("fail2ban", f2b.strip() == "active", f2b.strip()[:20], "/shield harden")
+    du = shutil.disk_usage("/")
+    pct = du.used * 100 // du.total
+    add("Disk /", pct < 90, f"{pct}% terpakai", "bersihkan disk")
+    try:
+        mi = {l.split(":")[0]: int(l.split()[1]) for l in open("/proc/meminfo") if ":" in l}
+        pm = mi["MemAvailable"] * 100 // mi["MemTotal"]
+        add("Memori", pm > 10, f"{pm}% tersedia", "tutup proses berat")
+    except Exception:
+        pass
+    try:
+        compile(open(MYOSA_FILE).read(), MYOSA_FILE, "exec")
+        add("Sintaks myosa.py", True, "valid")
+    except Exception as e:
+        add("Sintaks myosa.py", False, str(e)[:50], "/rollback")
+    bk = len(glob.glob(os.path.join(BACKUP_DIR, "*.py")))
+    add("Backup inti", bk > 0, f"{bk} backup", "dibuat otomatis tiap start")
+    rusak = len(glob.glob(os.path.join(PLUGIN_DIR, "*.rusak")))
+    add("Plugin", all(v == "ok" for v in PLUGIN_INFO.values()) and rusak == 0,
+        f"{len(PLUGIN_INFO)} dimuat, {rusak} rusak", "/plugin")
+    add("Shield watcher", bool(_shield_thr and _shield_thr.is_alive()),
+        "aktif" if (_shield_thr and _shield_thr.is_alive()) else "mati", "/shield watch on")
+    tb = Table(title="🩺 Myosa Doctor", border_style="#6a8cff", title_style="bold #00e0ff")
+    tb.add_column("")
+    tb.add_column("komponen")
+    tb.add_column("keterangan")
+    bad = 0
+    for n, ok, d, fix in rows:
+        sym = "[green]✓[/]" if ok is True else ("[yellow]![/]" if ok is None else "[red]✗[/]")
+        if ok is False:
+            bad += 1
+        tb.add_row(sym, n, escape(str(d)) + (f"  [dim]→ {escape(fix)}[/]" if fix and ok is not True else ""))
+    console.print(tb)
+    say("Semua sehat." if not bad else f"Ada {bad} hal yang perlu diperbaiki, petunjuknya ada di kolom kanan.",
+        "write" if not bad else "think")
+
+# ================= BANNER & COMMAND =================
+_banner_v3 = banner
+def banner(animated=False):
+    _banner_v3(animated)
+    g = Table.grid(padding=(0, 2))
+    g.add_row("[dim]berpikir[/]", f"[bold #a06bff]{DEEP_NAMES[DEEP].upper()}[/] [dim]/deep · maks {MAX_STEPS} langkah[/]")
+    g.add_row("[dim]hidup[/]", ("[green]ON[/]" if LIVE else "[red]OFF[/]") + " [dim]/hidup[/]")
+    g.add_row("[dim]plugin[/]", f"{sum(1 for v in PLUGIN_INFO.values() if v == 'ok')} aktif [dim]/plugin · /evolve · /doctor[/]")
+    console.print(g)
+    if animated and LIVE:
+        greet()
+
+_handle_v3 = handle_cmd
+def handle_cmd(q, msgs):
+    global DEEP, MAX_STEPS, LIVE
+    cmd, _, arg = q[1:].partition(" ")
+    arg = arg.strip()
+    if cmd in PLUGIN_CMDS:
+        try:
+            return PLUGIN_CMDS[cmd][0](arg, msgs)
+        except Exception as e:
+            console.print(Panel(escape(f"{type(e).__name__}: {e}"), title=f"plugin /{cmd} error", border_style="red"))
+            return
+    if cmd == "deep":
+        mp = {"1": 1, "normal": 1, "2": 2, "dalam": 2, "3": 3, "ekstrem": 3}
+        n = mp.get(arg.lower())
+        if n is None:
+            if sys.stdin.isatty() and termios:
+                items = [("1. normal   · cepat", "1"),
+                         ("2. dalam    · pikir teliti + verifikasi mandiri", "2"),
+                         ("3. ekstrem  · rencana wajib, maks 45 langkah, verifikasi", "3")]
+                r, v = menu("Kedalaman berpikir", items, cur=str(DEEP))
+                if r != "pick":
+                    return
+                n = int(v)
+            else:
+                console.print(f"berpikir: {DEEP_NAMES[DEEP]} (pakai /deep normal|dalam|ekstrem)")
+                return
+        DEEP, MAX_STEPS = n, DEEP_STEPS[n]
+        save_cfg()
+        say(f"Mode berpikir {DEEP_NAMES[n]}. Maksimal {MAX_STEPS} langkah per tugas.", "think")
+        return
+    if cmd == "hidup":
+        LIVE = (arg.lower() == "on") if arg.lower() in ("on", "off") else (not LIVE)
+        save_cfg()
+        console.print(f"Myosa hidup: {'[green]ON[/]' if LIVE else '[red]OFF[/]'} [dim](sapaan, tips saat diam, pemandu saat bingung)[/]")
+        return
+    if cmd == "doctor":
+        return doctor()
+    if cmd == "plugin":
+        return plugin_cmd(arg.lower())
+    if cmd == "rollback":
+        return rollback_cmd()
+    if cmd == "evolve":
+        if not arg:
+            console.print("[yellow]Pakai:[/] /evolve <fitur yang kamu mau>\nContoh: /evolve command /disk yang menampilkan pemakaian disk berwarna")
+            return
+        return "SEND:" + EVOLVE_GUIDE + arg
+    r = _handle_v3(q, msgs)
+    if cmd == "help":
+        console.print("[bold #00e0ff]/deep[/] kedalaman berpikir · [bold #00e0ff]/hidup[/] Myosa bicara · "
+                      "[bold #00e0ff]/doctor[/] cek komponen · [bold #00e0ff]/plugin[/] · [bold #00e0ff]/evolve[/] fitur baru · "
+                      "[bold #00e0ff]/rollback[/] pulihkan inti")
+    return r
+
+backup_core()
+load_plugins()
+for _f in glob.glob(os.path.join(PLUGIN_DIR, "*.py")):
+    _PL_SEEN[_f] = os.path.getmtime(_f)
 
 
 def main():
