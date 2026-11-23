@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# MYOSACODE AGENT v3.0.0
+# MYOSACODE AGENT v5.0.0
 import os, sys, re, io, json, glob, time, base64, shlex, difflib, atexit, subprocess, select
 try:
     import readline
@@ -28,7 +28,7 @@ try:
 except Exception:
     HAS_PIL = False
 
-VERSION = "4.0.0"
+VERSION = "5.0.0"
 console = Console()
 CFG_DIR = os.path.expanduser("~/.myosa")
 CFG_FILE = os.path.join(CFG_DIR, "config.json")
@@ -3278,6 +3278,1190 @@ backup_core()
 load_plugins()
 for _f in glob.glob(os.path.join(PLUGIN_DIR, "*.py")):
     _PL_SEEN[_f] = os.path.getmtime(_f)
+
+
+# ---------- V4.1 ----------
+CMDS.append("/provider")
+ZY_URL = BASE_URL
+ZY_KEY = CFG_KEY
+ZY_HEALTH_FILE = HEALTH_FILE
+PROVIDERS = dict(CFG.get("providers", {}))
+PMODEL = dict(CFG.get("pmodel", {}))
+ACTIVE = CFG.get("provider", "zyvor")
+PRESETS = {"apinex": ("https://api.apinex.bond/v1", "free/glm-5.3-flash", "APINEX_API_KEY")}
+
+def save_cfg():
+    try:
+        PMODEL[ACTIVE] = MODEL
+        json.dump({"model": MODEL, "auto": AUTO, "key": ZY_KEY, "engine": ENGINE, "mode": MODE,
+                   "guard": GUARD, "anim": ANIM_IDX, "shield": SHIELD_ON, "deep": DEEP, "live": LIVE,
+                   "provider": ACTIVE, "providers": PROVIDERS, "pmodel": PMODEL}, open(CFG_FILE, "w"))
+        os.chmod(CFG_FILE, 0o600)
+    except Exception:
+        pass
+
+def apply_provider(name, net=True):
+    global ACTIVE, BASE_URL, API_KEY, MODELS, HEALTH, HEALTH_T, HEALTH_FILE, MODEL, AUTH, CONNECTED
+    if net:
+        PMODEL[ACTIVE] = MODEL
+    if name == "zyvor":
+        BASE_URL = ZY_URL
+        API_KEY = (ZY_KEY or os.environ.get("ZKEY") or "").strip().strip("\"'")
+        HEALTH_FILE = ZY_HEALTH_FILE
+    else:
+        BASE_URL = PROVIDERS[name]["url"]
+        API_KEY = PROVIDERS[name]["key"]
+        HEALTH_FILE = os.path.join(CFG_DIR, "health-%s.json" % name)
+    ACTIVE = name
+    make_client()
+    MODELS = []
+    HEALTH_T, HEALTH = _load_health()
+    AUTH, CONNECTED = None, False
+    if not net:
+        return
+    pre = PRESETS.get(name)
+    MODEL = PMODEL.get(name) or (pre[1] if pre else MODEL)
+    try:
+        fetch_models(True)
+        CONNECTED = True
+    except Exception:
+        CONNECTED = False
+    if CONNECTED and MODELS and MODEL not in MODELS:
+        MODEL = MODELS[0]
+    if CONNECTED and API_KEY:
+        AUTH = check_key()
+    save_cfg()
+
+_want = ACTIVE
+ACTIVE = "zyvor"
+if _want != "zyvor" and _want in PROVIDERS:
+    apply_provider(_want, net=False)
+
+def _host(u):
+    return re.sub(r"^https?://", "", u).split("/")[0]
+
+def provider_use(name):
+    if name != "zyvor" and name not in PROVIDERS:
+        console.print("[red]provider tidak ada. Lihat /provider list[/]")
+        return
+    with console.status("[cyan]beralih ke %s...[/]" % escape(name), spinner="dots2"):
+        apply_provider(name)
+    ok = "[green]● terhubung[/]" if CONNECTED else "[red]● tidak terhubung[/]"
+    if not API_KEY:
+        ks = "[red]key kosong[/]"
+    else:
+        ks = {True: "[green]key valid[/]", False: "[red]key ditolak (401)[/]", None: "[yellow]key belum terverifikasi[/]"}[AUTH]
+    console.print(Panel("provider [bold #00e0ff]%s[/] · %s (%d model) · %s\nmodel aktif: [bold]%s[/]\n[dim]/health untuk cek model hidup · /model untuk memilih[/]"
+                        % (escape(name), ok, len(MODELS), ks, escape(MODEL)), border_style="#6a8cff"))
+
+def provider_add(p):
+    raw = p[0] if p else console.input("[bold #a06bff]nama provider[/] › ")
+    name = re.sub(r"[^\w\-]", "", raw.strip().lower())
+    if not name or name == "zyvor":
+        console.print("[red]nama tidak valid atau sudah dipakai[/]")
+        return
+    pre = PRESETS.get(name)
+    if len(p) > 1:
+        url = p[1]
+    elif pre:
+        url = pre[0]
+    else:
+        url = console.input("[bold #a06bff]base URL[/] [dim](contoh https://host/v1)[/] › ")
+    url = url.strip().rstrip("/")
+    if not (url.startswith("https://") or re.match(r"http://(localhost|127\.)", url)):
+        console.print("[red]URL harus https:// (kecuali localhost). Dibatalkan.[/]")
+        return
+    key = console.input("[bold #a06bff]API key %s[/] [dim](tersembunyi; kosong = pakai variabel env jika ada)[/] › " % escape(name),
+                        password=True).strip().strip("\"'")
+    if not key and pre:
+        key = os.environ.get(pre[2], "").strip()
+    if not key:
+        console.print("[red]key kosong. Dibatalkan.[/]")
+        return
+    PROVIDERS[name] = {"url": url, "key": key}
+    save_cfg()
+    console.print("[green]✓ provider '%s' disimpan[/]" % escape(name))
+    provider_use(name)
+
+def provider_del(name):
+    if name == "zyvor" or name not in PROVIDERS:
+        console.print("[red]provider tidak ada (zyvor tidak bisa dihapus)[/]")
+        return
+    if sys.stdin.isatty() and termios:
+        r, v = menu("Hapus provider %s?" % name, [("Ya, hapus", "y"), ("Batal", "n")])
+        if r != "pick" or v != "y":
+            return
+    if ACTIVE == name:
+        provider_use("zyvor")
+    PROVIDERS.pop(name, None)
+    PMODEL.pop(name, None)
+    try:
+        os.remove(os.path.join(CFG_DIR, "health-%s.json" % name))
+    except Exception:
+        pass
+    save_cfg()
+    console.print("[green]✓ dihapus[/]")
+
+def provider_list():
+    tb = Table(title="Provider", border_style="#6a8cff")
+    for c in ("", "nama", "host", "key", "model terakhir"):
+        tb.add_column(c)
+    for n in ["zyvor"] + sorted(PROVIDERS):
+        k = (ZY_KEY or os.environ.get("ZKEY") or "") if n == "zyvor" else PROVIDERS[n]["key"]
+        u = ZY_URL if n == "zyvor" else PROVIDERS[n]["url"]
+        tb.add_row("[green]●[/]" if n == ACTIVE else "", n, escape(_host(u)),
+                   (k[:4] + "…" + k[-3:]) if len(k) > 8 else ("kosong" if not k else "***"),
+                   escape(MODEL if n == ACTIVE else PMODEL.get(n, "-")))
+    console.print(tb)
+
+def provider_cmd(arg):
+    try:
+        p = shlex.split(arg)
+    except ValueError:
+        p = []
+    sub = p[0].lower() if p else ""
+    if not sub:
+        if not (sys.stdin.isatty() and termios):
+            provider_list()
+            return
+        items = [("%s %-9s %s" % ("●" if n == ACTIVE else " ", n, _host(ZY_URL if n == "zyvor" else PROVIDERS[n]["url"])), n)
+                 for n in ["zyvor"] + sorted(PROVIDERS)]
+        if "apinex" not in PROVIDERS:
+            items.append(("+ tambah APInex (api.apinex.bond)", "+apinex"))
+        items += [("+ tambah provider lain", "+add"), ("- hapus provider", "-del"), ("  daftar lengkap", "list")]
+        r, v = menu("Pilih provider", items, cur=ACTIVE)
+        if r != "pick":
+            return
+        if v == "+apinex":
+            return provider_add(["apinex"])
+        if v == "+add":
+            return provider_add([])
+        if v == "-del":
+            names = sorted(PROVIDERS)
+            if not names:
+                console.print("[yellow]belum ada provider tambahan[/]")
+                return
+            r2, v2 = menu("Hapus provider", [(n, n) for n in names])
+            if r2 == "pick":
+                provider_del(v2)
+            return
+        if v == "list":
+            return provider_list()
+        return provider_use(v)
+    if sub == "list":
+        provider_list()
+    elif sub == "add":
+        provider_add(p[1:])
+    elif sub in ("use", "pakai", "switch") and len(p) > 1:
+        provider_use(p[1].lower())
+    elif sub in ("del", "hapus") and len(p) > 1:
+        provider_del(p[1].lower())
+    elif sub == "test":
+        provider_use(ACTIVE)
+    elif sub in PROVIDERS or sub == "zyvor":
+        provider_use(sub)
+    else:
+        console.print("[yellow]/provider · /provider add [nama] · /provider use <nama> · /provider del <nama> · /provider list · /provider test[/]")
+
+_ask_key_v4 = ask_key
+def ask_key():
+    global ZY_KEY
+    old = API_KEY
+    _ask_key_v4()
+    if API_KEY != old:
+        if ACTIVE == "zyvor":
+            ZY_KEY = API_KEY
+        else:
+            PROVIDERS[ACTIVE]["key"] = API_KEY
+        save_cfg()
+
+def pick_fallback(tried):
+    pool = [m for m, v in HEALTH.items() if v is True and m not in tried]
+    prov = MODEL.split("/")[0]
+    pool.sort(key=lambda m: (m.split("/")[0] != prov, m))
+    if ACTIVE == "zyvor":
+        for m in FALLBACK:
+            if m not in tried and m not in pool and HEALTH.get(m) is not False:
+                pool.append(m)
+    elif not pool:
+        cand = [m for m in MODELS if m not in tried and HEALTH.get(m) is not False]
+        cand.sort(key=lambda m: ("free" not in m and "flash" not in m, m))
+        pool = cand[:1]
+    return pool[0] if pool else None
+
+_redact_v4 = redact
+def redact(s):
+    s = _redact_v4(s)
+    for k in [ZY_KEY] + [v.get("key", "") for v in PROVIDERS.values()]:
+        if k and len(k) > 8:
+            s = s.replace(k, "[KEY-DISEMBUNYIKAN]")
+    return s
+
+_run_turn_v41 = run_turn
+def run_turn(msgs):
+    if ENGINE == "opencode" and ACTIVE != "zyvor":
+        console.print(Panel("Engine opencode hanya terhubung ke provider zyvor (sesuai config OpenCode). "
+                            "Ketik /engine myosa atau /provider zyvor.", title="engine tidak cocok", border_style="yellow"))
+        if msgs and msgs[-1].get("role") == "user":
+            msgs.pop()
+        return
+    _run_turn_v41(msgs)
+
+def prov_row():
+    g = Table.grid(padding=(0, 2))
+    g.add_row("[dim]provider[/]", "[bold #00e0ff]%s[/] [dim]%s · %d terdaftar · /provider[/]"
+              % (escape(ACTIVE), escape(_host(BASE_URL)), len(PROVIDERS) + 1))
+    console.print(g)
+
+_greet_v4 = greet
+def greet():
+    prov_row()
+    _greet_v4()
+
+_banner_v4 = banner
+def banner(animated=False):
+    _banner_v4(animated)
+    if not (animated and LIVE):
+        prov_row()
+
+_handle_v4 = handle_cmd
+def handle_cmd(q, msgs):
+    cmd, _, arg = q[1:].partition(" ")
+    if cmd == "provider":
+        return provider_cmd(arg.strip())
+    r = _handle_v4(q, msgs)
+    if cmd == "help":
+        console.print("[bold #00e0ff]/provider[/] ganti/tambah penyedia API (zyvor, apinex, dll.)")
+    return r
+
+
+# ---------- V4.1.1 ----------
+def key_ok(k):
+    return bool(k) and k.isascii() and not re.search(r"\s", k)
+
+_make_client_v41 = make_client
+def make_client():
+    global API_KEY, ZY_KEY
+    if API_KEY and not key_ok(API_KEY):
+        console.print(Panel("API key berisi karakter tidak valid (biasanya '…' dari key yang terpotong/disamarkan di dashboard). "
+                            "Ambil key LENGKAP, lalu pakai /key atau /provider add.",
+                            title="key tidak valid", border_style="red"))
+        API_KEY = ""
+        if ACTIVE == "zyvor":
+            ZY_KEY = ""
+        elif ACTIVE in PROVIDERS:
+            PROVIDERS[ACTIVE]["key"] = ""
+        save_cfg()
+    _make_client_v41()
+
+TRANSIENT = TRANSIENT + ("429", "rate limit", "too many requests")
+
+
+# ---------- V4.2 ----------
+ENV_FILE = os.path.join(CFG_DIR, ".env.local")
+ENV_HEADER = "# Myosa Agent - API key tiap provider. RAHASIA: jangan di-commit, jangan dibagikan."
+ENV_NOTES = []
+CMDS.append("/env")
+
+def _kok(k):
+    return bool(k) and k.isascii() and not re.search(r"\s", k)
+
+def env_name(prov):
+    return re.sub(r"\W", "_", prov).upper() + "_API_KEY"
+
+def _env_lines():
+    try:
+        return open(ENV_FILE, encoding="utf-8").read().splitlines()
+    except Exception:
+        return []
+
+def _split_env(ln):
+    s = ln.strip()
+    if not s or s.startswith("#") or "=" not in s:
+        return None, None
+    if s.startswith("export "):
+        s = s[7:].lstrip()
+    k, _, v = s.partition("=")
+    return k.strip(), v.strip().strip("\"'")
+
+def read_env():
+    d = {}
+    for ln in _env_lines():
+        k, v = _split_env(ln)
+        if k:
+            d[k] = v
+    return d
+
+def _write_lines(lines):
+    os.makedirs(CFG_DIR, exist_ok=True)
+    try:
+        os.chmod(CFG_DIR, 0o700)
+    except Exception:
+        pass
+    tmp = ENV_FILE + ".tmp"
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
+    os.replace(tmp, ENV_FILE)
+    os.chmod(ENV_FILE, 0o600)
+
+def set_env(name, value):
+    lines = _env_lines()
+    out, done = [], False
+    for ln in lines:
+        k, _ = _split_env(ln)
+        if k == name:
+            if value is not None and not done:
+                out.append("%s=%s" % (name, value))
+                done = True
+            continue
+        out.append(ln)
+    if value is not None and not done:
+        if not out:
+            out = [ENV_HEADER]
+        out.append("%s=%s" % (name, value))
+    if out != lines:
+        _write_lines(out)
+
+def load_keys():
+    global ZY_KEY
+    try:
+        if os.path.exists(ENV_FILE) and (os.stat(ENV_FILE).st_mode & 0o077):
+            os.chmod(ENV_FILE, 0o600)
+    except Exception:
+        pass
+    env = read_env()
+    for nm in list(env):
+        if nm.endswith("_API_KEY") and env[nm] and not _kok(env[nm]):
+            set_env(nm, None)
+            ENV_NOTES.append("%s berisi karakter tidak valid (mis. '…' dari key terpotong), dihapus dari .env.local. "
+                             "Masukkan ulang lewat /key atau /provider add." % nm)
+            del env[nm]
+    moved = []
+    if ZY_KEY and _kok(ZY_KEY) and "ZYVOR_API_KEY" not in env:
+        set_env("ZYVOR_API_KEY", ZY_KEY)
+        env["ZYVOR_API_KEY"] = ZY_KEY
+        moved.append("zyvor")
+    for n, v in PROVIDERS.items():
+        nm = env_name(n)
+        if v.get("key") and _kok(v["key"]) and nm not in env:
+            set_env(nm, v["key"])
+            env[nm] = v["key"]
+            moved.append(n)
+    ZY_KEY = env.get("ZYVOR_API_KEY", "")
+    for n, v in PROVIDERS.items():
+        v["key"] = env.get(env_name(n), "")
+    if moved:
+        ENV_NOTES.append("Key dipindahkan dari config.json ke %s: %s" % (ENV_FILE, ", ".join(moved)))
+
+load_keys()
+
+def sync_env():
+    cur = read_env()
+    want = {"ZYVOR_API_KEY": ZY_KEY}
+    for n, v in PROVIDERS.items():
+        want[env_name(n)] = v.get("key", "")
+    for name, val in want.items():
+        if val and _kok(val) and cur.get(name) != val:
+            set_env(name, val)
+
+def save_cfg():
+    try:
+        PMODEL[ACTIVE] = MODEL
+        json.dump({"model": MODEL, "auto": AUTO, "key": "", "engine": ENGINE, "mode": MODE,
+                   "guard": GUARD, "anim": ANIM_IDX, "shield": SHIELD_ON, "deep": DEEP, "live": LIVE,
+                   "provider": ACTIVE,
+                   "providers": {n: {"url": v.get("url", ""), "key": ""} for n, v in PROVIDERS.items()},
+                   "pmodel": PMODEL}, open(CFG_FILE, "w"))
+        os.chmod(CFG_FILE, 0o600)
+    except Exception:
+        pass
+    try:
+        sync_env()
+    except Exception:
+        pass
+
+def reapply_active():
+    global API_KEY
+    if ACTIVE == "zyvor":
+        API_KEY = (ZY_KEY or os.environ.get("ZKEY") or "").strip().strip("\"'")
+    else:
+        API_KEY = PROVIDERS.get(ACTIVE, {}).get("key", "")
+    make_client()
+
+reapply_active()
+save_cfg()
+
+_provider_del_v41 = provider_del
+def provider_del(name):
+    had = name in PROVIDERS
+    _provider_del_v41(name)
+    if had and name not in PROVIDERS:
+        set_env(env_name(name), None)
+
+def _mask(k):
+    return (k[:4] + "…" + k[-3:]) if len(k) > 10 else ("***" if k else "")
+
+def env_cmd(arg):
+    if arg.strip().lower() == "reload":
+        load_keys()
+        provider_use(ACTIVE)
+        return
+    tb = Table(title=".env.local", border_style="#6a8cff")
+    for c in ("variabel", "provider", "status"):
+        tb.add_column(c)
+    rows = [("ZYVOR_API_KEY", "zyvor", ZY_KEY)] + [(env_name(n), n, v.get("key", "")) for n, v in sorted(PROVIDERS.items())]
+    for nm, pv, k in rows:
+        tb.add_row(nm, pv + (" *" if pv == ACTIVE else ""),
+                   ("[green]● %s[/]" % escape(_mask(k))) if k else "[red]○ kosong[/]")
+    console.print(tb)
+    try:
+        mode = oct(os.stat(ENV_FILE).st_mode & 0o777)[2:]
+    except Exception:
+        mode = "(file belum ada)"
+    console.print("[dim]file: %s · izin %s · * = provider aktif[/]\n[dim]edit manual: nano %s lalu /env reload[/]"
+                  % (escape(ENV_FILE), mode, escape(ENV_FILE)))
+
+_banner_v411 = banner
+def banner(animated=False):
+    _banner_v411(animated)
+    if ENV_NOTES:
+        console.print(Panel("\n".join(ENV_NOTES), title=".env.local", border_style="yellow"))
+        ENV_NOTES.clear()
+
+_handle_v411 = handle_cmd
+def handle_cmd(q, msgs):
+    cmd, _, arg = q[1:].partition(" ")
+    if cmd == "env":
+        return env_cmd(arg)
+    r = _handle_v411(q, msgs)
+    if cmd == "help":
+        console.print("[bold #00e0ff]/env[/] lihat atau muat ulang key di .env.local")
+    return r
+
+
+# ---------- V5.0 ----------
+import builtins, collections
+OUT_LOCK = threading.Lock()
+BOX_READY = threading.Event()
+
+def input(prompt=""):
+    BOX_READY.set()
+    try:
+        return builtins.input(prompt)
+    finally:
+        BOX_READY.clear()
+
+SLEVEL = CFG.get("slevel", "agresif")
+if SLEVEL not in ("pasif", "waspada", "agresif"):
+    SLEVEL = "agresif"
+ALLOW = set(CFG.get("allow", []))
+BANS_FILE = os.path.join(CFG_DIR, "bans.json")
+TH = {"pasif": 10.0, "waspada": 15.0, "agresif": 8.0}
+SCAN_TH = {"pasif": 20, "waspada": 25, "agresif": 12}
+DEF = {"ufw": True, "f2b": True}
+BAN_TIMES = []
+
+_save_cfg_v42 = save_cfg
+def save_cfg():
+    _save_cfg_v42()
+    try:
+        d = json.load(open(CFG_FILE))
+        d["slevel"] = SLEVEL
+        d["allow"] = sorted(ALLOW)
+        json.dump(d, open(CFG_FILE, "w"))
+        os.chmod(CFG_FILE, 0o600)
+    except Exception:
+        pass
+
+def _load_bans():
+    try:
+        return json.load(open(BANS_FILE))
+    except Exception:
+        return {}
+
+BANS = _load_bans()
+
+def save_bans():
+    try:
+        json.dump(BANS, open(BANS_FILE, "w"))
+        os.chmod(BANS_FILE, 0o600)
+    except Exception:
+        pass
+
+# ================= PROTEKSI ANTI-TERKUNCI =================
+_CONN = {"t": 0, "v": set()}
+_OWN = {"t": 0, "v": set()}
+_SPORT = {"v": None}
+
+def client_ip():
+    return (os.environ.get("SSH_CONNECTION", "").split() or [""])[0]
+
+def connected_ips():
+    now = time.time()
+    if now - _CONN["t"] < 10:
+        return _CONN["v"]
+    if _SPORT["v"] is None:
+        _, sp = sh("sshd -T 2>/dev/null | awk '/^port /{print $2; exit}'")
+        _SPORT["v"] = int(sp) if sp.strip().isdigit() else 22
+    _, out = sh("ss -Htn state established '( sport = :%d )' 2>/dev/null" % _SPORT["v"])
+    ips = set()
+    for ln in out.splitlines():
+        p = ln.split()
+        if len(p) >= 4:
+            host = p[3].rpartition(":")[0].strip("[]")
+            if host.startswith("::ffff:"):
+                host = host[7:]
+            if host:
+                ips.add(host)
+    ci = client_ip()
+    if ci:
+        ips.add(ci)
+    _CONN["t"], _CONN["v"] = now, ips
+    return ips
+
+def own_ips():
+    now = time.time()
+    if now - _OWN["t"] < 120:
+        return _OWN["v"]
+    _, o = sh("hostname -I 2>/dev/null")
+    _OWN["t"], _OWN["v"] = now, set(o.split())
+    return _OWN["v"]
+
+def _in_allow(o):
+    for a in ALLOW:
+        try:
+            if "/" in a:
+                if o in ipaddress.ip_network(a, strict=False):
+                    return True
+            elif o == ipaddress.ip_address(a):
+                return True
+        except ValueError:
+            continue
+    return False
+
+def is_protected(ip):
+    try:
+        o = ipaddress.ip_address(ip)
+    except ValueError:
+        return True
+    if (o.is_loopback or o.is_private or o.is_link_local or o.is_multicast
+            or o.is_unspecified or o.is_reserved):
+        return True
+    if _in_allow(o):
+        return True
+    s = str(o)
+    return s in connected_ips() or s in own_ips()
+
+# ================= MESIN BLOKIR (fail2ban + firewall) =================
+def f2b_active():
+    return sh("systemctl is-active fail2ban 2>&1")[1].strip() == "active"
+
+def ufw_active():
+    return "Status: active" in sh("ufw status 2>&1 | head -n1")[1]
+
+def f2b_info():
+    rc, o = sh("fail2ban-client status sshd 2>&1")
+    if rc != 0:
+        return None
+    cur = re.search(r"Currently banned:\s*(\d+)", o)
+    tot = re.search(r"Total banned:\s*(\d+)", o)
+    lst = re.search(r"Banned IP list:\s*(.*)", o)
+    return {"cur": int(cur.group(1)) if cur else 0, "tot": int(tot.group(1)) if tot else 0,
+            "ips": lst.group(1).split() if lst else []}
+
+def ban_ip(ip, reason, hours=24, src="auto", force_fw=False):
+    try:
+        ip = str(ipaddress.ip_address(ip.strip()))
+    except ValueError:
+        return False, "IP tidak valid"
+    if is_protected(ip):
+        return False, "IP dilindungi (whitelist, koneksi aktif, atau jaringan privat)"
+    now = time.time()
+    if src == "auto":
+        BAN_TIMES[:] = [t for t in BAN_TIMES if now - t < 3600]
+        if len(BAN_TIMES) >= 40:
+            return False, "batas 40 blokir otomatis per jam tercapai"
+        BAN_TIMES.append(now)
+    rec = BANS.get(ip, {})
+    rec["count"] = rec.get("count", 0) + 1
+    repeat = rec["count"] >= 2 or force_fw
+    via, ok_any = [], False
+    if f2b_active():
+        rc, _ = sh("fail2ban-client set sshd banip %s" % ip)
+        if rc == 0:
+            via.append("fail2ban")
+            ok_any = True
+    if repeat or not ok_any:
+        if ufw_active():
+            rc, _ = sh("ufw insert 1 deny from %s comment 'myosa' || ufw deny from %s" % (ip, ip))
+            name = "ufw"
+        else:
+            rc, _ = sh("iptables -C INPUT -s %s -j DROP 2>/dev/null || iptables -I INPUT -s %s -j DROP" % (ip, ip))
+            name = "iptables"
+        if rc == 0:
+            via.append(name)
+            ok_any = True
+    if not ok_any:
+        rec["count"] -= 1
+        return False, "fail2ban dan firewall gagal memblokir"
+    hrs = hours * 7 if repeat and src == "auto" else hours
+    rec.update(ts=now, until=now + hrs * 3600, reason=reason, via="+".join(via), src=src, active=True)
+    BANS[ip] = rec
+    save_bans()
+    return True, "+".join(via)
+
+def unban_ip(ip, expired=False):
+    sh("fail2ban-client unban %s 2>/dev/null; ufw --force delete deny from %s 2>/dev/null; "
+       "iptables -D INPUT -s %s -j DROP 2>/dev/null; true" % (ip, ip, ip))
+    if expired and ip in BANS:
+        BANS[ip]["active"] = False
+    else:
+        BANS.pop(ip, None)
+    save_bans()
+
+def expire_bans():
+    now = time.time()
+    for ip, r in list(BANS.items()):
+        if r.get("active", True) and r.get("until", 0) and r["until"] < now:
+            unban_ip(ip, expired=True)
+
+# ================= DETEKSI (menggantikan watcher v3) =================
+IPF = re.compile(r"(?:from|by|with)(?: (?:authenticating|invalid) user \S+)? ([0-9a-fA-F.:]+) port \d+")
+UFW_RX = re.compile(r"SRC=(\S+) .*?PROTO=TCP.*? DPT=(\d+)")
+
+def weigh(msg):
+    if msg.startswith("Accepted"):
+        return 0.0
+    if "Failed password" in msg or "maximum authentication attempts" in msg:
+        return 1.0
+    if (msg.startswith("Invalid user") or "Failed publickey" in msg or "Unable to negotiate" in msg
+            or "banner exchange" in msg or "kex_exchange" in msg):
+        return 0.5
+    if "[preauth]" in msg:
+        return 0.25
+    return 0.0
+
+class Tail:
+    def __init__(self, path):
+        self.path, self.pos = path, None
+    def read(self):
+        try:
+            size = os.path.getsize(self.path)
+        except OSError:
+            return ""
+        if self.pos is None:
+            self.pos = size
+            return ""
+        if size < self.pos:
+            self.pos = 0
+        if size == self.pos:
+            return ""
+        with open(self.path, "rb") as f:
+            f.seek(self.pos)
+            data = f.read(600000)
+            self.pos = f.tell()
+        return data.decode(errors="replace")
+
+def state_snapshot():
+    d = snapshot_state()
+    try:
+        d["sshd"] = fhash("/etc/ssh/sshd_config") + "".join(
+            fhash(f) for f in sorted(glob.glob("/etc/ssh/sshd_config.d/*.conf")))
+    except Exception:
+        d["sshd"] = ""
+    d["crond"] = sh("(cat /etc/cron.d/* 2>/dev/null; crontab -l 2>/dev/null) | md5sum | cut -c1-16")[1].strip()
+    d["uid0"] = sh("awk -F: '$3==0{print $1}' /etc/passwd")[1].split()
+    d["ufw"] = ufw_active()
+    d["f2b"] = f2b_active()
+    return d
+
+CHG = (("passwd", "tinggi", "/etc/passwd berubah (user baru atau diubah?)"),
+       ("authkeys", "tinggi", "authorized_keys root berubah (kunci SSH baru?)"),
+       ("cron", "sedang", "/etc/crontab berubah"),
+       ("crond", "sedang", "isi /etc/cron.d atau crontab root berubah"),
+       ("sudoers", "tinggi", "/etc/sudoers berubah"),
+       ("sshd", "tinggi", "konfigurasi sshd berubah"))
+
+def react(ip, detail, what):
+    if SLEVEL == "pasif":
+        add_alert("tinggi", "%s dari %s (%s). Mode pasif, tidak diblokir. Blokir: /shield ban %s" % (what, ip, detail, ip))
+        return
+    ok, how = ban_ip(ip, "%s: %s" % (what, detail), 24)
+    if ok:
+        add_alert("tinggi", "%s dari %s (%s) -> DIBLOKIR otomatis via %s. Buka: /shield unban %s" % (what, ip, detail, how, ip))
+    else:
+        add_alert("sedang", "%s dari %s (%s) tidak diblokir: %s" % (what, ip, detail, how))
+
+def shield_loop():
+    global BASE
+    try:
+        BASE = json.load(open(SHIELD_FILE))
+    except Exception:
+        BASE = {}
+    try:
+        for k, v in state_snapshot().items():
+            BASE.setdefault(k, v)
+        json.dump(BASE, open(SHIELD_FILE, "w"))
+    except Exception:
+        pass
+    auth = Tail("/var/log/auth.log")
+    fw = Tail("/var/log/ufw.log" if os.path.exists("/var/log/ufw.log") else "/var/log/kern.log")
+    ev, scan, alerted = collections.defaultdict(list), collections.defaultdict(list), {}
+    tick = 0
+
+    def due(key, secs=600):
+        now = time.time()
+        if now - alerted.get(key, 0) > secs:
+            alerted[key] = now
+            return True
+        return False
+
+    while not _shield_stop.wait(5):
+        tick += 1
+        now = time.time()
+        try:
+            for line in auth.read().splitlines():
+                m0 = re.search(r"sshd(?:\[\d+\])?: (.*)$", line)
+                if not m0:
+                    continue
+                msg = m0.group(1)
+                ips = IPF.findall(msg)
+                if not ips:
+                    continue
+                ip = ips[-1]
+                try:
+                    ipaddress.ip_address(ip)
+                except ValueError:
+                    continue
+                if msg.startswith("Accepted"):
+                    sc = sum(x for t, x in ev.get(ip, []) if now - t < 600)
+                    if sc >= 3 and due("ok" + ip):
+                        add_alert("tinggi", "Login SSH BERHASIL dari %s setelah banyak gagal login (%.0f poin). "
+                                  "Kemungkinan brute force berhasil! Periksa: last -n 10, ganti password dan kunci." % (ip, sc))
+                    continue
+                w = weigh(msg)
+                if w and not is_protected(ip):
+                    ev[ip].append((now, w))
+            for ip in list(ev):
+                ev[ip] = [(t, x) for t, x in ev[ip] if now - t < 600]
+                if not ev[ip]:
+                    del ev[ip]
+                    continue
+                sc = sum(x for _, x in ev[ip])
+                if sc >= TH[SLEVEL] and due("b" + ip):
+                    react(ip, "skor %.0f per 10 menit" % sc, "Brute force SSH")
+                    ev.pop(ip, None)
+            for line in fw.read().splitlines():
+                m = UFW_RX.search(line)
+                if m and not is_protected(m.group(1)):
+                    scan[m.group(1)].append((now, int(m.group(2))))
+            for ip in list(scan):
+                scan[ip] = [(t, p) for t, p in scan[ip] if now - t < 120]
+                if not scan[ip]:
+                    del scan[ip]
+                    continue
+                n = len({p for _, p in scan[ip]})
+                if n >= SCAN_TH[SLEVEL] and due("s" + ip):
+                    react(ip, "%d port berbeda dalam 2 menit" % n, "Port scan")
+                    scan.pop(ip, None)
+            if len(ev) > 5000:
+                ev.clear()
+            if len(scan) > 5000:
+                scan.clear()
+            if tick % 6:
+                continue
+            expire_bans()
+            cur = state_snapshot()
+            for k in ("ufw", "f2b"):
+                BASE.setdefault(k, cur[k])
+            newp = set(cur["ports"]) - set(BASE.get("ports", []))
+            if newp and due("ports:" + str(sorted(newp)), 3600):
+                add_alert("sedang", "Port baru terbuka ke luar: %s. Kalau bukan kamu yang membuka, selidiki." % sorted(newp))
+            for k, lv, msg in CHG:
+                if BASE.get(k) not in (None, cur.get(k)):
+                    add_alert(lv, msg)
+            bad = [u for u in cur.get("uid0", []) if u != "root"]
+            if bad and due("uid0", 3600):
+                add_alert("tinggi", "Akun UID 0 selain root terdeteksi: %s. Selidiki segera." % ", ".join(bad))
+            if BASE.get("f2b") is True and not cur["f2b"] and due("f2b"):
+                if SLEVEL != "pasif":
+                    sh("systemctl restart fail2ban", 60)
+                    ok = f2b_active()
+                    add_alert("tinggi", "fail2ban mati" + (", dinyalakan ulang otomatis." if ok else " dan GAGAL dinyalakan. Cek: systemctl status fail2ban"))
+                else:
+                    add_alert("tinggi", "fail2ban mati. Nyalakan: systemctl restart fail2ban")
+            if BASE.get("ufw") is True and not cur["ufw"] and due("ufw"):
+                if SLEVEL == "agresif":
+                    sh("ufw --force enable", 60)
+                    ok = ufw_active()
+                    add_alert("tinggi", "Firewall ufw mati" + (", dinyalakan ulang otomatis." if ok else " dan GAGAL dinyalakan ulang."))
+                else:
+                    add_alert("tinggi", "Firewall ufw mati. Nyalakan: ufw --force enable")
+            for k in cur:
+                if k not in ("ufw", "f2b"):
+                    BASE[k] = cur[k]
+            json.dump(BASE, open(SHIELD_FILE, "w"))
+        except Exception:
+            pass
+
+# ================= PERINTAH /shield BARU =================
+_shield_status_v3 = shield_status
+def shield_status():
+    _shield_status_v3()
+    fi = f2b_info()
+    lc = {"pasif": "#ffb86c", "waspada": "#00e0ff", "agresif": "#ff5c8a"}[SLEVEL]
+    t = Text()
+    t.append("Level respons   ", style="bold")
+    t.append(SLEVEL.upper() + "\n", style="bold " + lc)
+    t.append("Ambang blokir   skor >= %.0f / 10 mnt · port scan >= %d port / 2 mnt\n" % (TH[SLEVEL], SCAN_TH[SLEVEL]), style="dim")
+    if fi is None:
+        t.append("fail2ban        jail sshd tidak aktif\n", style="#ff5c8a")
+    else:
+        t.append("fail2ban        sshd: %d diblokir sekarang · %d total\n" % (fi["cur"], fi["tot"]))
+    t.append("Firewall        %s\n" % ("ufw aktif" if ufw_active() else "ufw MATI"))
+    t.append("Whitelist       %s\n" % (", ".join(sorted(ALLOW)) or "(kosong; koneksi SSH aktif tetap dilindungi)"))
+    act = sum(1 for r in BANS.values() if r.get("active", True))
+    t.append("Diblokir Myosa  %d aktif" % act)
+    console.print(Panel(t, title="🛡 Pertahanan aktif (v5)", border_style=lc))
+
+def bans_cmd():
+    now = time.time()
+    tb = Table(title="IP diblokir", border_style="#ff5c8a")
+    for c in ("IP", "lewat", "sumber", "alasan", "sisa"):
+        tb.add_column(c)
+    shown = set()
+    for ip, r in sorted(BANS.items(), key=lambda x: -x[1].get("ts", 0)):
+        if not r.get("active", True):
+            continue
+        shown.add(ip)
+        left = max(0, r.get("until", 0) - now) / 3600
+        tb.add_row(ip, r.get("via", "-"), r.get("src", "-"), escape(str(r.get("reason", "-"))[:34]), "%.0f jam" % left)
+    fi = f2b_info()
+    for ip in (fi["ips"] if fi else []):
+        if ip not in shown:
+            tb.add_row(ip, "fail2ban", "f2b", "jail sshd", "sesuai bantime")
+    if tb.row_count == 0:
+        console.print("[green]belum ada IP yang diblokir[/]")
+    else:
+        console.print(tb)
+    console.print("[dim]buka blokir: /shield unban IP[/]")
+
+LEVEL_INFO = {
+    "pasif": "hanya memberi peringatan, tidak memblokir apa pun",
+    "waspada": "blokir otomatis jika skor >= 15/10 mnt atau scan >= 25 port; nyalakan ulang fail2ban jika mati",
+    "agresif": "blokir skor >= 8, scan >= 12 port, pelanggar berulang masuk firewall 7x lebih lama; fail2ban dan ufw dinyalakan ulang otomatis jika mati",
+}
+
+def level_cmd(arg):
+    global SLEVEL
+    if arg not in LEVEL_INFO:
+        if not (sys.stdin.isatty() and termios):
+            console.print("level: %s (pakai /shield level pasif|waspada|agresif)" % SLEVEL)
+            return
+        r, v = menu("Level respons Shield", [("%-8s %s" % (k, d[:46]), k) for k, d in LEVEL_INFO.items()], cur=SLEVEL)
+        if r != "pick":
+            return
+        arg = v
+    SLEVEL = arg
+    save_cfg()
+    console.print(Panel("[bold]%s[/]: %s\nIP whitelist, koneksi SSH aktif, dan jaringan privat tidak pernah diblokir." % (arg.upper(), LEVEL_INFO[arg]),
+                        title="Level respons", border_style="#ff5c8a"))
+
+def _valid_net(s):
+    try:
+        ipaddress.ip_network(s, strict=False)
+        return True
+    except ValueError:
+        return False
+
+def allow_cmd(arg):
+    p = arg.split()
+    if p and p[0].lower() in ("del", "hapus") and len(p) > 1:
+        ALLOW.discard(p[1])
+        save_cfg()
+        console.print("[green]✓ dihapus dari whitelist[/]")
+        return
+    if p and p[0].lower() not in ("add", "tambah"):
+        p = ["add"] + p
+    if len(p) > 1:
+        s = p[1]
+        if not _valid_net(s):
+            console.print("[red]IP/CIDR tidak valid[/]")
+            return
+        ALLOW.add(s)
+        save_cfg()
+        sh("fail2ban-client set sshd addignoreip %s 2>/dev/null; fail2ban-client set recidive addignoreip %s 2>/dev/null; true" % (s, s))
+        if "/" not in s and s in BANS:
+            unban_ip(s)
+        console.print("[green]✓ %s masuk whitelist[/] [dim](fail2ban ikut mengabaikannya)[/]" % escape(s))
+        return
+    conn = sorted(connected_ips() - ALLOW)
+    tb = Table(title="Whitelist (tidak pernah diblokir)", border_style="#6a8cff")
+    tb.add_column("entri")
+    for a in sorted(ALLOW):
+        tb.add_row(a)
+    if ALLOW:
+        console.print(tb)
+    console.print("Koneksi SSH aktif (dilindungi otomatis): %s" % (", ".join(sorted(connected_ips())) or "-"))
+    console.print("[dim]tambah: /shield allow IP · hapus: /shield allow del IP[/]")
+    if conn and sys.stdin.isatty() and termios:
+        r, v = menu("Tambahkan IP koneksi saat ini ke whitelist?", [("Ya: %s" % ", ".join(conn), "y"), ("Tidak", "n")])
+        if r == "pick" and v == "y":
+            for ip in conn:
+                allow_cmd(ip)
+
+def shield_ban(ip, undo=False, hours=24):
+    try:
+        ip = str(ipaddress.ip_address(ip.strip()))
+    except ValueError:
+        console.print("[red]IP tidak valid[/]")
+        return
+    if undo:
+        unban_ip(ip)
+        console.print("[green]✓ blokir %s dibuka[/]" % ip)
+        return
+    if is_protected(ip):
+        console.print("[red]IP ini dilindungi (whitelist, koneksi aktif, atau jaringan privat). Dibatalkan.[/]")
+        return
+    if sys.stdin.isatty() and termios:
+        r, v = menu("Blokir %s selama %d jam (fail2ban + firewall)?" % (ip, hours), [("Ya", "y"), ("Batal", "n")])
+        if r != "pick" or v != "y":
+            return
+    ok, how = ban_ip(ip, "manual", hours, src="manual", force_fw=True)
+    console.print("[green]✓ %s diblokir via %s[/]" % (ip, how) if ok else "[red]gagal: %s[/]" % escape(how))
+
+_shield_cmd_v3 = shield_cmd
+def shield_cmd(arg):
+    p = arg.split()
+    sub = p[0].lower() if p else ""
+    if not sub and sys.stdin.isatty() and termios:
+        items = [("Status & skor keamanan", "status"), ("Perkuat VPS (disetujui per langkah)", "harden"),
+                 ("Level respons: %s" % SLEVEL, "level"), ("IP yang diblokir", "bans"),
+                 ("Whitelist IP (anti-terkunci)", "allow"), ("Blokir IP manual", "ban"),
+                 ("Peringatan terbaru", "alerts"), ("Audit lengkap oleh agent", "audit"),
+                 ("Watcher: " + ("matikan" if SHIELD_ON else "nyalakan"), "watch"),
+                 ("Reset baseline", "baseline")]
+        r, sub = menu("Myosa Shield", items)
+        if r != "pick":
+            return
+        p = [sub]
+    if sub == "level":
+        return level_cmd(p[1].lower() if len(p) > 1 else "")
+    if sub == "bans":
+        return bans_cmd()
+    if sub == "allow":
+        return allow_cmd(" ".join(p[1:]))
+    if sub == "ban" and len(p) > 2 and p[2].isdigit():
+        return shield_ban(p[1], False, max(1, min(int(p[2]), 720)))
+    return _shield_cmd_v3(" ".join(p))
+
+_harden_v3 = harden_steps
+def harden_steps():
+    steps = _harden_v3()
+    _, sp = sh("sshd -T 2>/dev/null | awk '/^port /{print $2; exit}'")
+    sport = int(sp) if sp.strip().isdigit() else 22
+    ign = " ".join(["127.0.0.1/8", "::1"] + sorted(ALLOW | connected_ips()))
+    guard = ("[DEFAULT]\nignoreip = %s\nbantime.increment = true\nbantime.factor = 2\nbantime.maxtime = 4w\n\n"
+             "[sshd]\nenabled = true\nmode = aggressive\nport = %d\nmaxretry = 5\nfindtime = 10m\nbantime = 2h\n\n"
+             "[recidive]\nenabled = true\nlogpath = /var/log/fail2ban.log\nbantime = 1w\nfindtime = 1d\nmaxretry = 3\n" % (ign, sport))
+    gp = "/etc/fail2ban/jail.d/zz-myosa-guard.local"
+    steps += [
+     {"t": "fail2ban mode agresif (eskalasi + recidive + whitelist)", "risk": "sedang",
+      "why": "sshd mode aggressive, maxretry 5, ban 2 jam yang berlipat ganda untuk pelanggar berulang (maks 4 minggu), "
+             "jail recidive 1 minggu untuk IP yang berulang kali diblokir, dan whitelist (termasuk koneksimu sekarang). "
+             "Konfigurasi dites (fail2ban-client -t) dan dibatalkan otomatis jika tidak valid.",
+      "items": [("file", gp, guard),
+                ("cmd", "fail2ban-client -t >/dev/null 2>&1 && systemctl restart fail2ban || "
+                        "{ rm -f %s; systemctl restart fail2ban; echo 'config tidak valid, dibatalkan'; false; }" % gp)]},
+     {"t": "Catat log firewall (untuk deteksi port scan)", "risk": "rendah",
+      "why": "ufw logging low supaya percobaan koneksi yang diblokir tercatat dan Myosa bisa mendeteksi pemindaian port.",
+      "items": [("cmd", "ufw logging low")]},
+     {"t": "Batasi laju koneksi SSH (ufw limit)", "risk": "sedang",
+      "why": "IP yang membuka 6 koneksi SSH atau lebih dalam 30 detik otomatis ditolak oleh firewall. "
+             "Membuka banyak sesi sekaligus dari satu IP bisa ikut terkena.",
+      "items": [("cmd", "ufw delete allow %d/tcp 2>/dev/null; ufw limit %d/tcp" % (sport, sport))]},
+    ]
+    return steps
+
+_shield_harden_v3 = shield_harden
+def shield_harden():
+    _shield_harden_v3()
+    try:
+        BASE.update(state_snapshot())
+        json.dump(BASE, open(SHIELD_FILE, "w"))
+    except Exception:
+        pass
+
+# ================= TOOL UNTUK AGENT =================
+def t_block(a):
+    ip = str(a.get("ip", "")).strip()
+    try:
+        ipaddress.ip_address(ip)
+    except ValueError:
+        return "ERROR: IP tidak valid"
+    if is_protected(ip):
+        return "DITOLAK: IP dilindungi (whitelist, koneksi aktif, atau privat). Jangan cari jalan lain."
+    try:
+        hrs = max(1, min(int(a.get("hours") or 24), 720))
+    except Exception:
+        hrs = 24
+    console.print(Panel("blokir %s selama %d jam\nalasan: %s" % (escape(ip), hrs, escape(str(a.get("reason", "-"))[:120])),
+                        title="🛡 block_ip", border_style="#ff5c8a"))
+    if not ask("Blokir IP ini?"):
+        return "User menolak."
+    ok, how = ban_ip(ip, str(a.get("reason", "agent"))[:120], hrs, src="agent", force_fw=True)
+    return ("OK diblokir via " + how) if ok else ("GAGAL: " + how)
+
+def t_unblock(a):
+    ip = str(a.get("ip", "")).strip()
+    try:
+        ip = str(ipaddress.ip_address(ip))
+    except ValueError:
+        return "ERROR: IP tidak valid"
+    unban_ip(ip)
+    return "OK: blokir %s dibuka" % ip
+
+def t_blocks(a):
+    now = time.time()
+    rows = ["%s via %s sisa %.0f jam (%s)" % (ip, r.get("via", "-"), max(0, r.get("until", 0) - now) / 3600, r.get("reason", "-"))
+            for ip, r in BANS.items() if r.get("active", True)]
+    fi = f2b_info()
+    if fi:
+        rows.append("fail2ban sshd: %d diblokir sekarang: %s" % (fi["cur"], " ".join(fi["ips"][:30])))
+    return "\n".join(rows) or "(tidak ada IP yang diblokir)"
+
+TOOLS.extend([
+    T("block_ip", "Blokir SATU IP (fail2ban + firewall). Hanya IP tunggal, bukan ASN/rentang. Minta persetujuan user.",
+      {"ip": ("string", "alamat IP"), "hours": ("integer", "durasi jam, default 24"), "reason": ("string", "alasan singkat")}, ["ip"]),
+    T("unblock_ip", "Buka blokir satu IP", {"ip": ("string", "alamat IP")}, ["ip"]),
+    T("list_blocks", "Daftar IP yang sedang diblokir (Myosa + fail2ban)", {}, []),
+])
+DISPATCH.update({"block_ip": t_block, "unblock_ip": t_unblock, "list_blocks": t_blocks})
+
+SHIELD_TEXT = """
+## Perlindungan VPS (Shield v5)
+- Shield berjalan di latar belakang dengan level {lvl}; ia memblokir IP penyerang lewat fail2ban dan firewall (ufw). Alat: block_ip, unblock_ip, list_blocks.
+- Blokir IP tunggal, bukan seluruh ASN atau rentang besar. Blokir rentang/ASN hanya jika user memintanya eksplisit, setelah menjelaskan risiko memblokir pengguna sah.
+- Jangan pernah memblokir IP koneksi SSH user atau IP whitelist. Jika block_ip menolak, jangan cari jalan lain.
+- Saat user bertanya soal serangan: periksa lewat list_blocks, fail2ban-client status sshd, dan log auth. Laporkan bukti dulu, lalu tindakan.
+"""
+_sp_v42 = system_prompt
+def system_prompt():
+    return _sp_v42() + SHIELD_TEXT.format(lvl=SLEVEL)
+
+# ================= MASKOT BERKEDIP REAL-TIME =================
+def _line_ok():
+    try:
+        return (not readline) or len(readline.get_line_buffer()) < max(10, console.width - 8)
+    except Exception:
+        return True
+
+def _bot_say(text, color="#e6ebff", prefix=" (•_•) ", pcolor="#a06bff"):
+    if not _line_ok():
+        return
+    with OUT_LOCK:
+        if not BOX_READY.is_set():
+            return
+        text = text[: max(10, console.width - len(prefix) - 4)]
+        sys.stdout.write("\x1b7\x1b[1B\r\x1b[2K" + _fg(pcolor) + prefix + RST)
+        for ch in text:
+            if not BOX_READY.is_set():
+                break
+            sys.stdout.write(_fg(color) + ch + RST)
+            sys.stdout.flush()
+            time.sleep(0.015)
+        sys.stdout.write("\x1b8")
+        sys.stdout.flush()
+
+Idle.speak = lambda self, tip: _bot_say(tip)
+
+class Blinker(threading.Thread):
+    def __init__(self):
+        super().__init__(daemon=True)
+        self.stop = threading.Event()
+    def draw(self, face, col):
+        if not _line_ok():
+            return False
+        w = max(34, console.width)
+        stxt = " ◆ shield " if SHIELD_ON else " ◇ shield off "
+        c = max(1, w - len(stxt) - 8)
+        with OUT_LOCK:
+            if not BOX_READY.is_set() or self.stop.is_set():
+                return False
+            sys.stdout.write("\x1b7\x1b[1A\x1b[%dG" % c + _fg(col) + "\033[1m " + face + " " + RST + "\x1b8")
+            sys.stdout.flush()
+        return True
+    def run(self):
+        last, announced = None, len(ALERTS)
+        until = happy = 0.0
+        nb = time.time() + random.uniform(2, 4)
+        while not self.stop.wait(0.1):
+            if not BOX_READY.is_set():
+                last = None
+                continue
+            now = time.time()
+            if len(ALERTS) > announced:
+                announced = len(ALERTS)
+                _bot_say("ALERT: " + ALERTS[-1][2], "#ff5c8a", " (!_!) ", "#ff5c8a")
+                last = None
+            if len(ALERTS) > SEEN:
+                face = "(!_!)" if int(now * 2) % 2 == 0 else "(>_<)"
+                col = "#ff5c8a"
+            else:
+                col = mode_color()
+                if now >= nb and now >= until:
+                    until = now + 0.16
+                    dbl = random.random() < 0.3
+                    nb = until + (0.12 if dbl else random.uniform(2.5, 5.5))
+                    if not dbl and random.random() < 0.15:
+                        happy = until + 1.2
+                face = "(-_-)" if now < until else ("(^_^)" if now < happy else "(•_•)")
+            if (face, col) != last:
+                if self.draw(face, col):
+                    last = (face, col)
+
+_read_input_v4 = read_input
+def read_input():
+    if not sys.stdin.isatty():
+        return _read_input_v4()
+    b = Blinker()
+    b.start()
+    try:
+        return _read_input_v4()
+    finally:
+        b.stop.set()
+
+_render_v4 = render
+def render(think, text, calls, t0):
+    p = _render_v4(think, text, calls, t0)
+    if console.width < 76:
+        return p
+    el = time.time() - t0
+    g = Table.grid(expand=True)
+    g.add_column(width=13)
+    g.add_column(ratio=1)
+    g.add_row(cat_mini(int(el * 10) % 34 < 3), p)
+    return g
+
+# ================= BANNER & TIPS =================
+_pick_tip_v4 = pick_tip
+def pick_tip():
+    if (not DEF["f2b"] or not DEF["ufw"]) and random.random() < 0.5:
+        return "Pertahanan belum penuh: " + ("fail2ban mati. " if not DEF["f2b"] else "") + \
+               ("ufw mati. " if not DEF["ufw"] else "") + "Ketik /shield harden."
+    return _pick_tip_v4()
+
+_banner_v42 = banner
+def banner(animated=False):
+    _banner_v42(animated)
+    DEF["ufw"], DEF["f2b"] = ufw_active(), f2b_active()
+    lc = {"pasif": "#ffb86c", "waspada": "#00e0ff", "agresif": "#ff5c8a"}[SLEVEL]
+    act = sum(1 for r in BANS.values() if r.get("active", True))
+    g = Table.grid(padding=(0, 2))
+    g.add_row("[dim]pertahanan[/]", "ufw %s · fail2ban %s · level [bold %s]%s[/] [dim]· %d diblokir · /shield[/]" % (
+        "[green]●[/]" if DEF["ufw"] else "[red]○[/]", "[green]●[/]" if DEF["f2b"] else "[red]○[/]", lc, SLEVEL, act))
+    console.print(g)
 
 
 def main():
