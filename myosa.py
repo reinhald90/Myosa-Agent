@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# MYOSACODE AGENT v5.0.0
+# MYOSACODE AGENT V1 The Beginning • V5.0.0
 import os, sys, re, io, json, glob, time, base64, shlex, difflib, atexit, subprocess, select
 try:
     import readline
@@ -29,6 +29,8 @@ except Exception:
     HAS_PIL = False
 
 VERSION = "5.0.0"
+ERA = "V1 The Beginning"
+VERSION_LABEL = "V1 The Beginning • V5.0.0"
 console = Console()
 CFG_DIR = os.path.expanduser("~/.myosa")
 CFG_FILE = os.path.join(CFG_DIR, "config.json")
@@ -190,7 +192,7 @@ def boot():
 
 # ---------- SYSTEM PROMPT (khusus DeepSeek) ----------
 def system_prompt():
-    return f"""Kamu adalah MYOSACODE AGENT v{VERSION}, AI coding agent yang bekerja langsung di terminal Linux milik user. Kamu bisa membaca, membuat, mengedit file, dan menjalankan perintah lewat tool.
+    return f"""Kamu adalah MYOSACODE AGENT {VERSION_LABEL}, AI coding agent yang bekerja langsung di terminal Linux milik user. Kamu bisa membaca, membuat, mengedit file, dan menjalankan perintah lewat tool.
 
 ## Cara berpikir
 1. Pahami tujuan user. Kalau permintaan ambigu dan berisiko, tanya satu pertanyaan singkat. Kalau jelas, langsung kerjakan.
@@ -732,7 +734,7 @@ def handle_cmd(q, msgs):
                      ("/config  /version", "info pengaturan"),
                      ("/clear", "hapus riwayat chat"), ("/exit", "keluar")]:
             t.add_row(f"[bold #00e0ff]{k}[/]", v)
-        console.print(Panel(t, title=f"MYOSACODE AGENT v{VERSION}", border_style="#6a8cff"))
+        console.print(Panel(t, title=f"MYOSACODE AGENT {VERSION_LABEL}", border_style="#6a8cff"))
     elif cmd == "model":
         pick_model(arg)
     elif cmd == "models":
@@ -793,7 +795,7 @@ def handle_cmd(q, msgs):
             t.add_row(f"[dim]{k}[/]", escape(v))
         console.print(t)
     elif cmd == "version":
-        console.print(f"MYOSACODE AGENT v{VERSION}")
+        console.print(f"MYOSACODE AGENT {VERSION_LABEL}")
     else:
         console.print("[red]Command tidak dikenal. Ketik /help[/]")
 
@@ -1902,7 +1904,7 @@ def banner(animated=False):
     word = "MYOSACODE"
     for i, ch in enumerate(word):
         title.append(ch + " ", style="bold " + _mix("#00ffd5", "#a06bff", i / (len(word) - 1)))
-    tag = Text(f"A G E N T  ·  v{VERSION}", style="bold #a06bff")
+    tag = Text(f"A G E N T  ·  {VERSION_LABEL}", style="bold #a06bff")
     sub = Text("pixel coding agent · shell · shield", style="dim")
     info = Table.grid(padding=(0, 2))
     oc = shutil.which("opencode")
