@@ -10,12 +10,12 @@
 
 <br>
 
-![versi](https://img.shields.io/badge/versi-5.0.0-a06bff?style=for-the-badge)
+![versi](https://img.shields.io/badge/versi-5.9.0-a06bff?style=for-the-badge)
 ![python](https://img.shields.io/badge/python-3.10%2B-00b8ff?style=for-the-badge&logo=python&logoColor=white)
 ![platform](https://img.shields.io/badge/Ubuntu%20%2F%20Debian-00ffd5?style=for-the-badge&logo=ubuntu&logoColor=black)
 ![lisensi](https://img.shields.io/badge/lisensi-MIT-6a8cff?style=for-the-badge)
 
-[Fitur](#-fitur-unggulan) · [Kenapa berbeda](#-kenapa-myosa-berbeda) · [Instalasi](#-instalasi) · [Provider](#-provider-api) · [Shield](#-myosa-shield) · [Perintah](#-perintah) · [Batasan](#-batasan-baca-ini)
+[Fitur](#-fitur-unggulan) · [Kenapa berbeda](#-kenapa-myosa-berbeda) · [Instalasi](#-instalasi) · [Provider](#-provider-api) · [Shield](#-myosa-shield) · [Izin](#-tingkat-izin-l0-l3) · [GitHub](#-github-login-seperti-codex) · [Perintah](#-perintah) · [Batasan](#-batasan-baca-ini)
 
 </div>
 
@@ -28,11 +28,17 @@
 | 🛡️ **Myosa Shield** | Pelindung VPS aktif: deteksi brute force dan port scan, blokir lewat **fail2ban + firewall (ufw)**, skor keamanan 0-100, hardening yang disetujui per langkah. |
 | ✋ **Persetujuan bertingkat** | Agent boleh mengerjakan apa pun, **tapi bagian sensitif selalu berhenti** dan menunggu pilihanmu: *Lanjut sekali / Lanjut & izinkan / Lewati / Hentikan*. |
 | 🧠 **Berpikir dalam** | Tiga level (`normal`, `dalam`, `ekstrem`) dengan rencana, antisipasi gagal, dan **verifikasi mandiri** sebelum menyatakan selesai. |
-| 🖥️ **Tampilan ala komputer** | Pikiran mengalir real time, kode yang sedang ditulis tampil live dengan syntax highlight, dan 8 animasi berpikir. |
+| 🖥️ **Tampilan ala komputer** | Pikiran mengalir real time, kode yang sedang ditulis tampil live dengan syntax highlight, 8 animasi berpikir, dan animasi boot dengan titik yang berubah tiap detik. |
 | 🐱 **Myosa hidup** | Maskot kucing piksel yang berkedip real time, menyapa, memberi tips saat kamu diam, dan memandu saat kamu bingung. |
 | 🔌 **Multi-provider** | Satu agent, banyak penyedia API kompatibel OpenAI. API key tersimpan di `~/.myosa/.env.local`. |
 | ⚙️ **Dua engine** | Engine **myosa** (API langsung) atau engine **opencode** (meneruskan ke `opencode run`). |
 | 🧩 **Plugin dan `/evolve`** | Minta fitur baru, Myosa menulisnya sebagai plugin terpisah. Inti tidak tersentuh. |
+| 🔐 **Tingkat izin L0-L3** | Kamu yang menentukan seberapa jauh agent boleh bertindak: hanya baca, normal, otonom, sampai kontrol penuh VPS. Selalu mulai di L1. |
+| 🤖 **Mode otonom** | `/otonom` mengerjakan tugas panjang sendiri dengan batas langkah dan waktu. Bagian sensitif tetap berhenti dan bertanya. |
+| 👥 **Agen paralel** | Sampai 4 sub-agen (hanya baca) menyelidiki hal berbeda sekaligus, lalu hasilnya digabung. |
+| 🐙 **Login GitHub** | `/gh login` seperti `codex login`: kode, klik Authorize, selesai. Issue, branch, dan PR atas nama akunmu. Tidak pernah menulis ke `main`. |
+| 🧰 **Alat server** | `system_info`, `port_list`, `top_procs`, `git_status`, `find_files`, `calc`, `hash_file`, `service_status`, `log_tail`, `docker_ps`, dan catatan lintas sesi. |
+| 🎯 **Enam mode kerja** | `dev`, `eng`, `ops`, `cyber`, `data`, `riset`. Prompt disusun agar bekerja di semua model AI, bukan satu model saja. |
 
 ---
 
@@ -86,6 +92,57 @@ myosa
 /shield harden     # fail2ban agresif, log firewall, ufw limit
 /shield level      # pilih level respons
 ```
+
+---
+
+## 🔐 Tingkat izin (L0-L3)
+
+Ubah dengan `/izin`. **Setiap Myosa dibuka, izin kembali ke L1.** Level tinggi tidak disimpan antar sesi.
+
+| Level | Nama | Perilaku |
+|-------|------|----------|
+| **L0** | BACA | Hanya membaca. Menolak semua perintah yang mengubah sesuatu. |
+| **L1** | NORMAL *(bawaan)* | Tanya sebelum perintah yang tidak aman. |
+| **L2** | OTONOM | Kerja otomatis. Bagian sensitif dan plugin **tetap tanya**. |
+| **L3** | PENUH | L2 + kontrol VPS: `service_ctl`, `pkg_manage`, `docker_ctl`, `ufw_rule`. Naik ke L3 harus mengetik `PENUH`. |
+
+**Batas keras di semua level** (tidak bisa dibuka lewat izin): menghapus root/home/folder sistem, `mkfs`, `dd` ke disk, reboot/shutdown, menghentikan SSH/fail2ban/ufw/jaringan, mengosongkan iptables, menghapus user, dan mengutak-atik log.
+
+```text
+/izin                 pilih tingkat izin (menu)
+/otonom [-l langkah] [-m menit] <tugas>
+                      mode otonom dengan batas langkah dan waktu
+                      contoh: /otonom -l 30 -m 15 audit keamanan server ini dan buat laporan
+```
+
+**Agen paralel:** agent bisa memanggil sampai 4 sub-agen sekaligus (maks 8 langkah dan 150 detik tiap agen, hanya alat baca). Ini mempercepat penyelidikan, tetapi **memperbanyak panggilan API**.
+
+> Catatan jujur: batas keras dan daftar perintah baca-saja di L0 berbasis pola teks, bukan sandbox. Perintah yang disamarkan bisa lolos.
+
+---
+
+## 🐙 GitHub: login seperti Codex
+
+Myosa bisa membuat issue, commit ke branch, dan membuka pull request. Tidak perlu token manual:
+
+```text
+/gh login        tampil kode, buka github.com/login/device, klik Authorize
+/gh repo         pilih repo (otomatis dari git remote jika di folder repo)
+/gh status       akun dan repo aktif
+/gh id           atur identitas commit git ke akunmu
+/gh push [nama]  kirim commit ke BRANCH baru (bukan main)
+/gh pr <branch> <judul>
+/gh logout       hapus token lokal
+```
+
+- Aksi dilakukan **atas nama akunmu**, hanya di repo yang sudah dipasangi [GitHub App Myosa Agent](https://github.com/apps/myosa-agent).
+- Agent **tidak pernah menulis ke branch utama**. Ia bekerja di branch, membuat PR, dan **kamu yang merge**.
+- Semua aksi tulis (issue, komentar, commit, PR) minta persetujuan dan ditolak di L0.
+- File rahasia (`.env`, kunci privat, token) ditolak sebelum terkirim. Path `.github/` dan `..` juga ditolak.
+- Token pengguna disimpan di `~/.myosa/github-user.json` (izin 600) dan tidak pernah tampil di output. Cabut kapan saja di `github.com/settings/applications`.
+- Pemilik proyek bisa memakai mode bot (`~/.myosa/github.json` + kunci App). Kunci itu **tidak pernah dibagikan** ke pengguna lain.
+
+Aktifkan **branch protection** di `main` pada repomu sebagai lapisan pengaman kedua.
 
 ---
 
@@ -155,9 +212,16 @@ Nama variabel dibuat dari nama provider: `nama` menjadi `NAMA_API_KEY`.
 | `/health [kata]` | Cek model mana yang hidup |
 | `/provider` | Kelola penyedia API |
 | `/engine` | Pilih engine: myosa / opencode |
-| `/mode` | `dev`, `ops`, `cyber` |
+| `/mode` | `dev`, `eng`, `ops`, `cyber`, `data`, `riset` |
 | `/deep` | Kedalaman berpikir: normal / dalam / ekstrem |
 | `/shield` | Pelindung VPS |
+| `/izin` | Tingkat izin L0-L3 |
+| `/otonom` | Mode otonom dengan batas langkah dan waktu |
+| `/gh` | GitHub: `login`, `repo`, `status`, `id`, `push`, `pr`, `logout` |
+| `/tools` | Daftar alat yang tersedia |
+| `/sys` | Info server ringkas |
+| `/note`, `/notes` | Catatan lintas sesi (`~/.myosa/notes.md`) |
+| `/export` | Simpan percakapan ke file `.md` |
 | `/audit [host]` | Audit keamanan read-only, lalu laporan oleh agent |
 | `/guard on\|off\|reset` | Pengaman bagian sensitif |
 | `/evolve <fitur>` | Minta Myosa membuat plugin baru |
@@ -175,9 +239,12 @@ Nama variabel dibuat dari nama provider: `nama` menjadi `NAMA_API_KEY`.
 
 ## 🧭 Mode
 
-- **dev**: coding dan manajemen file.
-- **ops**: administrasi server (instalasi, konfigurasi, monitoring).
-- **cyber**: audit dan hardening **defensif** untuk server milik sendiri. Tidak ada exploit, brute force, atau pemindaian target pihak lain.
+- **dev**: developer dan coding.
+- **eng**: engineering dan arsitektur.
+- **ops**: administrasi server dan DevOps (instalasi, konfigurasi, monitoring).
+- **cyber**: keamanan **defensif** untuk server milik sendiri. Tidak ada exploit, brute force, atau pemindaian target pihak lain.
+- **data**: data dan AI.
+- **riset**: riset dan dokumentasi.
 
 ---
 
@@ -189,6 +256,9 @@ Nama variabel dibuat dari nama provider: `nama` menjadi `NAMA_API_KEY`.
 - Deteksi port scan butuh langkah **"Catat log firewall"** dari `/shield harden`.
 - `.env.local` adalah **teks biasa** yang dilindungi izin file, bukan enkripsi.
 - Model kecil (mis. varian `flash`) kadang kurang rapi memanggil tool.
+- **Izin L2 dan L3 melonggarkan agent.** Pakai hanya di server yang kamu pahami, dan awasi di tmux.
+- Sub-agen dan mode otonom **menambah jumlah panggilan API** (biaya dan batas laju).
+- Token login GitHub disimpan sebagai teks di disk (izin file 600). Siapa pun yang punya akses root ke VPS bisa membacanya.
 - Dirancang untuk Ubuntu/Debian. Belum diuji luas di distro lain.
 
 ---
@@ -200,12 +270,15 @@ Nama variabel dibuat dari nama provider: `nama` menjadi `NAMA_API_KEY`.
 ~/.myosa/config.json   pengaturan (tanpa key)
 ~/.myosa/hosts.json    server SSH terdaftar
 ~/.myosa/plugins/      plugin buatanmu / hasil /evolve
+~/.myosa/notes.md      catatan lintas sesi
+~/.myosa/github-user.json   token login GitHub (izin 600)
+~/.myosa/github.json   (opsional, pemilik) konfigurasi mode bot
 ~/.myosa/backup/       cadangan inti myosa.py
 ~/.myosa/bans.json     IP yang diblokir Shield
 ~/.myosa/shield.log    log peringatan Shield
 ```
 
-**Jangan pernah meng-commit folder `~/.myosa/` atau file `.env*`.**
+**Jangan pernah meng-commit folder `~/.myosa/`, file `.env*`, atau file `.pem`.**
 
 ---
 
