@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# MYOSACODE AGENT V1 The Beginning • V5.4.0
+# MYOSACODE AGENT V1 The Beginning • V5.5.0
 import os, sys, re, io, json, glob, time, base64, shlex, difflib, atexit, subprocess, select
 try:
     import readline
@@ -28,9 +28,9 @@ try:
 except Exception:
     HAS_PIL = False
 
-VERSION = "5.4.0"
+VERSION = "5.5.0"
 ERA = "V1 The Beginning"
-VERSION_LABEL = "V1 The Beginning • V5.4.0"
+VERSION_LABEL = "V1 The Beginning • V5.5.0"
 console = Console()
 CFG_DIR = os.path.expanduser("~/.myosa")
 CFG_FILE = os.path.join(CFG_DIR, "config.json")
@@ -4929,6 +4929,122 @@ def system_prompt():
     except Exception:
         pass
     return s
+
+
+# ---------- V5.5 ----------
+# Animasi masuk baru: titik-titik berganti gaya tiap detik, progres gradasi, daftar langkah.
+import threading as _th
+_BR = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+_PP = [0, 1, 2, 3, 4, 3, 2, 1]
+def _d_titik(t):  return "." * (1 + int(t * 4) % 3)
+def _d_pantul(t): i = _PP[int(t * 8) % 8]; return "·" * i + "●" + "·" * (4 - i)
+def _d_ombak(t):  return "".join("▁▂▃▄▅▆▇█"[int((math.sin(t * 7 + i * 0.9) + 1) / 2 * 7.99)] for i in range(6))
+def _d_braille(t): return "".join(_BR[(int(t * 12) + i * 2) % 10] for i in range(4))
+def _d_isi(t):    k = int(t * 6) % 6; return "▰" * k + "▱" * (5 - k)
+def _d_panah(t):  return "›" * (1 + int(t * 5) % 4)
+def _d_bintang(t): return "".join("✦✧··✧"[(i + int(t * 6)) % 5] for i in range(5))
+def _d_kotak(t):  return "".join("■" if i == int(t * 8) % 6 else "□" for i in range(6))
+DOT_STYLES = [_d_titik, _d_pantul, _d_ombak, _d_braille, _d_isi, _d_panah, _d_bintang, _d_kotak]
+BOOT_MIN = 0.55  # detik minimal per langkah supaya animasinya sempat terlihat
+
+def dots_for(el):
+    """Gaya titik berganti setiap 1 detik; di dalam gaya tetap bergerak halus."""
+    return DOT_STYLES[int(el) % len(DOT_STYLES)](el)
+
+def _is_tty():
+    return sys.stdout.isatty()
+
+def _boot_frame(el, st, steps, pct, ready=False):
+    n, i = len(steps), st["i"]
+    col = _mix("#00ffd5", "#a06bff", (math.sin(el * 2.2) + 1) / 2)
+    title = Text()
+    for k, ch in enumerate("MYOSACODE"):
+        title.append(ch + " ", style="bold " + _mix("#00ffd5", "#a06bff", k / 8))
+    title.append("✔ siap" if ready else "memulai", style="bold #50fa7b" if ready else "dim")
+    lines = Text()
+    for k, (d, _) in enumerate(steps):
+        if k < len(st["done"]):
+            lines.append("✔ ", style="bold #50fa7b")
+            lines.append("%-27s" % d, style="#c9d1e6")
+            lines.append("%.1fs" % st["done"][k], style="dim")
+        elif k == i and not ready:
+            lines.append("▸ ", style="bold " + col)
+            lines.append("%-22s" % d, style="bold")
+            lines.append(dots_for(el), style=col)
+        else:
+            lines.append("· " + d, style="dim")
+        if k < n - 1:
+            lines.append("\n")
+    bar = Text()
+    w = 26
+    fill = int(w * pct / 100)
+    for j in range(w):
+        bar.append("█" if j < fill else "░", style=_mix("#00ffd5", "#a06bff", j / (w - 1)) if j < fill else "#2a2f45")
+    bar.append("  %3d%%" % int(pct), style="bold")
+    right = Group(title, Text(""), lines, Text(""), bar)
+    if console.width >= 64:
+        g = Table.grid(padding=(0, 3))
+        g.add_row(cat_mini(int(el * 10) % 17 < 2), right)
+        body = g
+    else:
+        body = right
+    return Padding(body, (1, 0, 0, 2))
+
+def boot():
+    global CONNECTED, AUTH
+    def s_conn():
+        global CONNECTED
+        try:
+            fetch_models(True)
+            CONNECTED = True
+        except Exception:
+            CONNECTED = False
+    def s_auth():
+        global AUTH
+        AUTH = check_key() if (CONNECTED and API_KEY) else None
+    nap = lambda: None
+    steps = [("Memuat modul", nap), ("Membaca konfigurasi", nap),
+             ("Menghubungi router %s" % ACTIVE, s_conn), ("Memeriksa API key", s_auth), ("Menyiapkan alat", nap)]
+    if not _is_tty():
+        for _, fn in steps:
+            fn()
+        banner(animated=False)
+        return
+    st = {"i": 0, "done": [], "fin": False, "t": time.time()}
+    def work():
+        for k, (_, fn) in enumerate(steps):
+            st["i"], st["t"] = k, time.time()
+            try:
+                fn()
+            except Exception:
+                pass
+            rest = BOOT_MIN - (time.time() - st["t"])
+            if rest > 0:
+                time.sleep(rest)
+            st["done"].append(time.time() - st["t"])
+        st["fin"] = True
+    th = _th.Thread(target=work, daemon=True)
+    th.start()
+    t0, pct, n = time.time(), 0.0, len(steps)
+    try:
+        with Live(console=console, refresh_per_second=20, transient=True) as lv:
+            while True:
+                el = time.time() - t0
+                nd = len(st["done"])
+                cur = 0 if st["fin"] else min(0.85, (time.time() - st["t"]) / (BOOT_MIN * 2))
+                target = 100.0 * (nd + cur) / n
+                pct += (target - pct) * 0.3
+                if st["fin"] and pct > 99.0:
+                    pct = 100.0
+                    lv.update(_boot_frame(el, st, steps, pct, ready=True))
+                    time.sleep(0.45)
+                    break
+                lv.update(_boot_frame(el, st, steps, pct))
+                time.sleep(0.05)
+    except KeyboardInterrupt:
+        pass
+    th.join(2)
+    banner(animated=True)
 
 
 def main():

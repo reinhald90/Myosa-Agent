@@ -8,3 +8,4 @@ __pycache__/
 .myosa/
 *.bak
 __pycache__/
+*.bak-*
