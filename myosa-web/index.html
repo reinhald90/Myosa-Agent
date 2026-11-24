@@ -1,0 +1,545 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Myosa — Agen AI serbaguna yang bekerja langsung di terminal Linux.">
+  <title>Myosa — Agen AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script>document.documentElement.classList.add('js');</script>
+</head>
+<body>
+  <div id="figmaCanvas" class="figma-canvas" aria-hidden="true">
+    <div class="figma-grid"></div>
+  </div>
+  <div class="bg-grid" aria-hidden="true"></div>
+  <div class="bg-blob bg-blob-a" aria-hidden="true"></div>
+  <div class="bg-blob bg-blob-b" aria-hidden="true"></div>
+
+  <nav class="site-nav glass" id="siteNav" aria-label="Navigasi utama">
+    <div class="nav-inner">
+      <a class="nav-brand" href="#top" aria-label="Ke atas" data-build="place">
+        <img src="logo.png" alt="" class="nav-logo" data-build="img">
+        <span>Myosa</span>
+      </a>
+      <button class="nav-toggle" id="navToggle" type="button" aria-label="Buka menu" aria-expanded="false" data-build="place">
+        <span></span><span></span><span></span>
+      </button>
+      <div class="nav-links" id="navLinks">
+        <a class="nav-link" href="#biodata" data-build="place">Profil</a>
+        <a class="nav-link" href="#kemampuan" data-build="place">Kemampuan</a>
+        <a class="nav-link" href="#cara-kerja" data-build="place">Cara Kerja</a>
+        <a class="nav-link" href="#prinsip" data-build="place">Prinsip</a>
+        <a class="nav-link" href="#scope" data-build="place">Lingkup</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="page" id="top">
+    <header class="hero" data-reveal>
+      <div class="hero-inner">
+        <div class="logo">
+          <img src="logo.png" alt="Logo Myosa" class="logo-img" data-build="img">
+          <span class="logo-text">Myosa</span>
+        </div>
+        <p class="eyebrow" data-build="type">MYOSACODE AGENT • V5.7.0</p>
+        <h1 class="hero-title" data-build="type">Agen AI untuk terminal Linux</h1>
+        <p class="hero-sub" data-build="type">Myosa membantu pekerjaan nyata: menulis kode, mengelola server, audit keamanan defensif, mengolah data, dan riset. Bukan sekadar menjawab—Myosa membaca, mengerjakan, lalu memverifikasi.</p>
+        <div class="hero-cta">
+          <a class="btn btn-primary" href="#biodata">Profil Agent</a>
+          <a class="btn btn-ghost" href="#kemampuan">Lihat kemampuan</a>
+        </div>
+        <div class="hero-stats">
+          <div class="stat glass"><span class="stat-val">5+</span><span class="stat-lbl">Mode kerja</span></div>
+          <div class="stat glass"><span class="stat-val">CLI</span><span class="stat-lbl">Native terminal</span></div>
+          <div class="stat glass"><span class="stat-val">Tool</span><span class="stat-lbl">Aksi nyata</span></div>
+          <div class="stat glass"><span class="stat-val">Bukti</span><span class="stat-lbl">Terverifikasi</span></div>
+        </div>
+      </div>
+    </header>
+
+    <section id="biodata" class="section" data-reveal>
+      <div class="section-head" data-reveal>
+        <p class="eyebrow">Profil</p>
+        <h2 data-build="type">Biodata Agent</h2>
+        <p>Identitas dan informasi singkat tentang Myosa Agent.</p>
+      </div>
+
+      <div class="discord-card" data-reveal>
+        <div class="dc-banner">
+          <img src="banner.png" alt="" class="dc-banner-img" data-build="img">
+          <div class="dc-banner-pattern" aria-hidden="true"></div>
+        </div>
+        <div class="dc-top">
+          <div class="dc-avatar-wrap">
+            <img src="logo.png" alt="Logo Myosa" class="dc-avatar">
+            <span class="dc-status" title="Aktif"></span>
+          </div>
+          <span class="dc-badge-top">MYOSACODE AGENT</span>
+        </div>
+        <div class="dc-body">
+          <div class="dc-identity">
+            <h3 class="dc-name" data-build="type">Myosa</h3>
+            <p class="dc-handle" data-build="type">myosa.agent • V5.7.0</p>
+          </div>
+          <div class="dc-divider"></div>
+          <div class="dc-block" data-build="place">
+            <p class="dc-label">ABOUT ME</p>
+            <p class="dc-about" data-build="type">Agen AI yang bekerja langsung di terminal Linux. Membaca, mengerjakan, lalu memverifikasi — dari eksplorasi sampai bukti nyata.</p>
+          </div>
+          <div class="dc-block" data-build="place">
+            <p class="dc-label">ROLES</p>
+            <div class="dc-roles">
+              <span class="dc-role" data-build="chip"><i style="background:#5865f2"></i>Developer</span>
+              <span class="dc-role" data-build="chip"><i style="background:#57f287"></i>Ops</span>
+              <span class="dc-role" data-build="chip"><i style="background:#fee75c"></i>Security</span>
+              <span class="dc-role" data-build="chip"><i style="background:#eb459e"></i>Data</span>
+              <span class="dc-role" data-build="chip"><i style="background:#ed4245"></i>Riset</span>
+            </div>
+          </div>
+          <div class="dc-block" data-build="place">
+            <p class="dc-label">INFO</p>
+            <div class="dc-info-grid">
+              <div class="dc-info"><span class="dc-info-k">Platform</span><span class="dc-info-v" data-build="type">Linux CLI</span></div>
+              <div class="dc-info"><span class="dc-info-k">Status</span><span class="dc-info-v"><span class="dc-dot"></span>Aktif</span></div>
+              <div class="dc-info"><span class="dc-info-k">Mode</span><span class="dc-info-v" data-build="type">Dev, Eng, Ops, Cyber, Data</span></div>
+              <div class="dc-info"><span class="dc-info-k">Gaya kerja</span><span class="dc-info-v" data-build="type">Jelajahi → Kerja → Verifikasi</span></div>
+            </div>
+          </div>
+          <div class="dc-note" data-build="place">
+            <span class="dc-note-dot"></span>
+            <span data-build="type">Online di terminal — siap bantu tugas teknis kamu.</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="kemampuan" class="section" data-reveal>
+      <div class="section-head" data-reveal>
+        <p class="eyebrow">Kemampuan</p>
+        <h2 data-build="type">Satu agen, banyak peran</h2>
+        <p>Myosa menyesuaikan peran sesuai tugas yang kamu berikan.</p>
+      </div>
+      <div class="cards">
+        <article class="card glass" data-reveal data-build="place">
+          <p class="card-tag">Dev</p>
+          <h3>Developer</h3>
+          <p>Menulis, memperbaiki, menguji, dan merapikan kode. Membaca struktur proyek dulu, lalu verifikasi.</p>
+          <ul class="card-list"><li>Debug & refactor</li><li>Buat fitur baru</li><li>Jalankan & verifikasi tes</li></ul>
+        </article>
+        <article class="card glass" data-reveal data-build="place">
+          <p class="card-tag">Ops</p>
+          <h3>Server & DevOps</h3>
+          <p>Instal, konfigurasi, monitoring, deploy, dan troubleshooting layanan Linux.</p>
+          <ul class="card-list"><li>Cek port, service, log</li><li>Deploy & konfigurasi</li><li>Troubleshooting berbasis bukti</li></ul>
+        </article>
+        <article class="card glass" data-reveal data-build="place">
+          <p class="card-tag">Cyber</p>
+          <h3>Keamanan Defensif</h3>
+          <p>Audit, hardening, analisis log, dan respons insiden untuk sistem milik sendiri.</p>
+          <ul class="card-list"><li>Audit konfigurasi</li><li>Review keamanan kode</li><li>Analisis log & IOC</li></ul>
+        </article>
+        <article class="card glass" data-reveal data-build="place">
+          <p class="card-tag">Data</p>
+          <h3>Data & Riset</h3>
+          <p>Olah data, skrip analisis, rangkuman sumber, dan dokumen teknis.</p>
+          <ul class="card-list"><li>Skrip analisis & SQL</li><li>Rangkuman sumber</li><li>Dokumentasi teknis</li></ul>
+        </article>
+      </div>
+    </section>
+
+    <section id="cara-kerja" class="section" data-reveal>
+      <div class="section-head" data-reveal>
+        <p class="eyebrow">Cara Kerja</p>
+        <h2 data-build="type">Alur yang jelas, hasil yang bisa dipercaya</h2>
+        <p>Setiap tugas dikerjakan bertahap agar mudah diaudit.</p>
+      </div>
+      <div class="steps">
+        <div class="step glass" data-build="place"><span class="step-num">01</span><h3>Pahami</h3><p>Menangkap tujuan, batasan, dan kriteria selesai sebelum menyentuh sistem.</p></div>
+        <div class="step glass" data-build="place"><span class="step-num">02</span><h3>Jelajahi</h3><p>Membaca file, konfigurasi, log, atau kondisi server yang relevan terlebih dahulu.</p></div>
+        <div class="step glass" data-build="place"><span class="step-num">03</span><h3>Eksekusi</h3><p>Mengerjakan perubahan secara bertahap dengan perintah dan tool yang tepat.</p></div>
+        <div class="step glass" data-build="place"><span class="step-num">04</span><h3>Verifikasi</h3><p>Menguji hasil, cek output, dan melaporkan apa yang terbukti berhasil.</p></div>
+      </div>
+    </section>
+
+    <section id="prinsip" class="section section-split" data-reveal>
+      <div class="split-left" data-reveal>
+        <p class="eyebrow">Prinsip</p>
+        <h2 data-build="type">Jelas, hati-hati, bisa diverifikasi</h2>
+        <p class="split-desc">Myosa dirancang untuk berguna di pekerjaan nyata. Bukan demo yang sekadar terlihat bagus, tapi agen yang bekerja dengan bukti.</p>
+        <div class="info-box glass">
+          <p class="info-label">Catatan</p>
+          <p>Halaman ini dibuat, dijalankan, dan diverifikasi langsung dari VPS oleh Myosa Agent.</p>
+        </div>
+      </div>
+      <ul class="principles">
+        <li><span class="num">01</span><div><h3>Jelajahi dulu</h3><p>Membaca kondisi nyata sebelum mengubah file, konfigurasi, atau sistem.</p></div></li>
+        <li><span class="num">02</span><div><h3>Kerjakan bertahap</h3><p>Tugas besar dipecah menjadi langkah kecil, dicek hasilnya, lalu dilanjutkan.</p></div></li>
+        <li><span class="num">03</span><div><h3>Verifikasi</h3><p>Setelah perubahan, ada bukti: output, tes, atau pemeriksaan ulang.</p></div></li>
+        <li><span class="num">04</span><div><h3>Jujur</h3><p>Yang belum teruji dikatakan belum teruji. Tidak mengarang hasil.</p></div></li>
+      </ul>
+    </section>
+
+    <section class="section" id="scope" data-reveal>
+      <div class="section-head" data-reveal>
+        <p class="eyebrow">Lingkup</p>
+        <h2 data-build="type">Apa yang bisa dikerjakan</h2>
+        <p>Contoh tugas nyata yang bisa ditangani Myosa di terminal Linux.</p>
+      </div>
+      <div class="scope-grid">
+        <div class="scope-item glass"><span class="scope-dot"></span><div><h3>Deploy web</h3><p>Setup server, konfigurasi, dan verifikasi akses.</p></div></div>
+        <div class="scope-item glass"><span class="scope-dot"></span><div><h3>Debug error</h3><p>Baca log, temukan akar masalah, dan perbaiki.</p></div></div>
+        <div class="scope-item glass"><span class="scope-dot"></span><div><h3>Audit server</h3><p>Cek port, service, user, dan konfigurasi keamanan.</p></div></div>
+        <div class="scope-item glass"><span class="scope-dot"></span><div><h3>Tulis skrip</h3><p>Otomasi tugas dengan script yang bisa diuji.</p></div></div>
+        <div class="scope-item glass"><span class="scope-dot"></span><div><h3>Riset teknis</h3><p>Cari sumber, bandingkan, dan rangkum dengan jelas.</p></div></div>
+        <div class="scope-item glass"><span class="scope-dot"></span><div><h3>Dokumentasi</h3><p>Tulis README, panduan, atau laporan teknis.</p></div></div>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <div>
+        <p class="footer-brand">Myosa</p>
+        <p class="footer-note">Agen AI serbaguna untuk terminal Linux. <span id="year"></span></p>
+      </div>
+      <p class="footer-meta">Dibuat oleh Myosa AI</p>
+    </footer>
+  </main>
+
+  <div class="cursor-build" id="cursorBuild" aria-hidden="true"></div>
+
+  <script>
+    document.getElementById('year').textContent = '• ' + new Date().getFullYear();
+    // Nav toggle (mobile)
+    const navToggle = document.getElementById('navToggle');
+    const navLinks = document.getElementById('navLinks');
+    if (navToggle && navLinks) {
+      navToggle.addEventListener('click', () => {
+        const isOpen = navLinks.classList.toggle('active');
+        navToggle.classList.toggle('active');
+        navToggle.setAttribute('aria-expanded', String(isOpen));
+      });
+      navLinks.querySelectorAll('a').forEach(a => a.addEventListener('click', () => {
+        navLinks.classList.remove('active');
+        navToggle.classList.remove('active');
+        navToggle.setAttribute('aria-expanded', 'false');
+      }));
+    }
+
+    // Real-time build on scroll (no dummy ghost scene)
+    const cursorBuild = document.getElementById('cursorBuild');
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const canBuild = cursorBuild && !reduce;
+
+    function makeCursor(color, label) {
+      const el = document.createElement('div');
+      el.className = 'bc-cursor';
+      el.style.setProperty('--cc', color);
+      el.innerHTML = `<svg class="bc-arrow" viewBox="0 0 24 24" fill="${color}"><path d="M4 2l16 11-7 1-3 8-6-20z"/></svg><span class="bc-label">${label}</span><span class="bc-action"></span>`;
+      cursorBuild.appendChild(el);
+      return { el, action: el.querySelector('.bc-action') };
+    }
+    const agents = canBuild ? [
+      { c: makeCursor('#1f5c4d','Builder'), role:'layout' },
+      { c: makeCursor('#7c3aed','Writer'),  role:'type'  },
+      { c: makeCursor('#c2410c','Media'),   role:'media' },
+      { c: makeCursor('#2563eb','Sizer'),   role:'resize'},
+      { c: makeCursor('#db2777','Cropper'), role:'crop'  },
+    ] : [];
+    function pickCursor(kind) {
+      if (!agents.length) return null;
+      const map = {type:'type', img:'media', place:'layout', chip:'layout', resize:'resize', crop:'crop'};
+      const want = map[kind] || 'layout';
+      return (agents.find(a=>a.role===want) || agents[0]).c;
+    }
+    function moveCursor(c, x, y, action) {
+      c.el.style.opacity = '1';
+      c.el.style.transition = 'transform 260ms cubic-bezier(.22,1,.36,1), opacity .15s';
+      c.el.style.transform = `translate(${x}px,${y}px)`;
+      c.action.textContent = action || '';
+      c.action.style.opacity = action ? '1' : '0';
+    }
+    function vpRect(el){ const r=el.getBoundingClientRect(); return {left:r.left, top:r.top, width:r.width, height:r.height}; }
+    function hideCursor(c) { c.el.style.opacity = '0'; c.action.style.opacity='0'; }
+    function clickRing(x,y,color){
+      const r=document.createElement('div'); r.className='bc-ring'; r.style.left=x+'px'; r.style.top=y+'px'; r.style.borderColor=color;
+      cursorBuild.appendChild(r); setTimeout(()=>r.remove(),700);
+    }
+
+    const queue = [];
+    let building = false;
+    function enqueue(fn) { queue.push(fn); if (!building) runQueue(); }
+    function runQueue() {
+      if (!queue.length) { 
+        building = false; 
+        const bc = document.getElementById('figmaCanvas');
+        if (bc && !bc.classList.contains('hidden')) setTimeout(()=>{ bc.classList.add('hidden'); document.body.classList.remove('building'); }, 900);
+        return; 
+      }
+      building = true;
+      const fn = queue.shift();
+      Promise.resolve(fn()).catch(()=>{}).finally(() => runQueue());
+    }
+    function wait(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+    async function buildType(el) {
+      if (el.dataset.built) return;
+      el.dataset.built = '1';
+      const full = el.dataset.fulltext || el.textContent.trim();
+      el.dataset.fulltext = full;
+      el.textContent = '';
+      el.classList.add('built-visible');
+      const c = canBuild ? pickCursor('type') : null;
+      const textNode = document.createTextNode('');
+      el.appendChild(textNode);
+      const caretProbe = document.createElement('span');
+      caretProbe.textContent = '\u200b';
+      caretProbe.style.cssText = 'display:inline-block;width:0;overflow:hidden;line-height:0;';
+      el.appendChild(caretProbe);
+
+      // floating typing preview near cursor
+      let preview = null;
+      if (c) {
+        preview = document.createElement('div');
+        preview.className = 'bc-type';
+        preview.style.setProperty('--cc', '#7c3aed');
+        cursorBuild.appendChild(preview);
+      }
+
+      for (let i = 0; i < full.length; i++) {
+        textNode.nodeValue += full[i];
+        const r = caretProbe.getBoundingClientRect();
+        if (c) {
+          moveCursor(c, r.left + 2, Math.max(4, r.top - 2), 'ketik');
+        }
+        if (preview) {
+          const snippet = full.slice(Math.max(0, i - 18), i + 1);
+          preview.textContent = snippet;
+          preview.style.left = (r.left + 14) + 'px';
+          preview.style.top = Math.max(4, r.top - 34) + 'px';
+          preview.style.opacity = '1';
+        }
+        await wait(full[i] === ' ' ? 10 : 22);
+      }
+      caretProbe.remove();
+      el.textContent = full;
+      if (preview) { preview.style.opacity='0'; setTimeout(()=>preview.remove(),250); }
+      if (c) { await wait(120); hideCursor(c); }
+    }
+
+    async function buildPlace(el) {
+      if (el.dataset.built) return;
+      el.dataset.built = '1';
+      const vr0 = vpRect(el);
+      // Sizer widens the board
+      const cSizer = canBuild ? pickCursor('resize') : null;
+      if (cSizer) {
+        moveCursor(cSizer, vr0.left + 8, Math.max(8,vr0.top - 10), 'lebarkan');
+        el.style.maxWidth = '40px'; el.style.overflow='hidden';
+        el.classList.add('built-visible');
+        await wait(60);
+        el.style.transition = 'max-width .45s cubic-bezier(.22,1,.36,1), opacity .35s ease, transform .35s ease';
+        el.style.maxWidth = vr0.width ? vr0.width + 'px' : '100%';
+        moveCursor(cSizer, vr0.left + Math.min(vr0.width, 320), Math.max(8,vr0.top - 10), 'lebarkan');
+        await wait(420);
+        el.style.maxWidth=''; el.style.overflow='';
+        hideCursor(cSizer);
+        await wait(60);
+      } else {
+        el.classList.add('built-visible');
+      }
+      // Layout places/clicks
+      const cLayout = canBuild ? pickCursor('place') : null;
+      if (cLayout) {
+        const vr = vpRect(el);
+        moveCursor(cLayout, vr.left + 24, Math.max(8,vr.top - 10), 'pasang');
+        // floating label
+        const tag = document.createElement('div');
+        tag.className = 'bc-type';
+        tag.style.setProperty('--cc', '#1f5c4d');
+        const name = (el.className || el.tagName).toString().split(/\s+/)[0].slice(0,18);
+        tag.textContent = '+ ' + name;
+        tag.style.left = (vr.left + 36) + 'px';
+        tag.style.top = Math.max(4, vr.top - 34) + 'px';
+        tag.style.opacity = '1';
+        cursorBuild.appendChild(tag);
+        await wait(80);
+        clickRing(vr.left+24, vr.top+14, '#1f5c4d');
+        await wait(180);
+        tag.style.opacity='0'; setTimeout(()=>tag.remove(),250);
+        hideCursor(cLayout);
+      }
+      el.classList.add('built-visible');
+    }
+
+    async function buildImage(el) {
+      if (el.dataset.built) return;
+      el.dataset.built = '1';
+      const cMedia = canBuild ? pickCursor('img') : null;
+      const cCrop  = canBuild ? pickCursor('crop') : null;
+      const vr0 = vpRect(el);
+
+      // media places: show floating label with src
+      let tag = null;
+      if (cMedia) {
+        moveCursor(cMedia, vr0.left + vr0.width*0.3, Math.max(8,vr0.top - 10), 'pasang media');
+        tag = document.createElement('div');
+        tag.className = 'bc-type';
+        tag.style.setProperty('--cc', '#c2410c');
+        const src = (el.getAttribute('src')||'image').split('/').pop();
+        tag.textContent = '🖼 ' + src;
+        tag.style.left = (vr0.left + 12) + 'px';
+        tag.style.top = Math.max(4, vr0.top - 34) + 'px';
+        tag.style.opacity = '1';
+        cursorBuild.appendChild(tag);
+        await wait(200);
+      }
+      el.classList.add('built-visible');
+      el.style.opacity = '1';
+      if (cMedia) { clickRing(vr0.left+vr0.width/2, vr0.top+vr0.height/2, '#c2410c'); }
+
+      // crop frame
+      if (cCrop) {
+        const vr = vpRect(el);
+        moveCursor(cCrop, vr.left + vr.width - 8, Math.max(8,vr.top - 10), 'crop');
+        const frame = document.createElement('div');
+        frame.className = 'bc-crop-frame';
+        frame.style.left = vr.left+'px'; frame.style.top = vr.top+'px'; frame.style.width=vr.width+'px'; frame.style.height=vr.height+'px';
+        cursorBuild.appendChild(frame);
+        await wait(450);
+        frame.style.opacity='0';
+        setTimeout(()=>frame.remove(), 300);
+        hideCursor(cCrop);
+      }
+      if (tag) { tag.style.opacity='0'; setTimeout(()=>tag.remove(),250); }
+      if (cMedia) hideCursor(cMedia);
+    }
+
+    async function buildChip(el, delay=0) {
+      if (el.dataset.built) return;
+      el.dataset.built = '1';
+      if (delay) await wait(0);
+      el.classList.add('built-visible');
+    }
+
+    function prepareBuild(el, kind) {
+      if (el.dataset.prepared) return;
+      el.dataset.prepared = '1';
+      if (!el.dataset.build) el.dataset.build = kind;
+      if (kind === 'type') {
+        el.dataset.fulltext = el.textContent.trim();
+        el.textContent = '';
+        el.classList.add('build-pending');
+      } else {
+        el.classList.add('build-pending');
+      }
+    }
+
+    // Prepare elements
+    const typeTargets = document.querySelectorAll('[data-build="type"]');
+    const placeTargets = document.querySelectorAll('[data-build="place"], .card, .step, .scope-item, .dc-block, .dc-note');
+    const imgTargets = document.querySelectorAll('[data-build="img"], .dc-avatar, .logo-img, .nav-logo, .dc-banner-img');
+    const chipTargets = document.querySelectorAll('[data-build="chip"]');
+
+    if (!reduce) {
+      typeTargets.forEach(el => prepareBuild(el,'type'));
+      placeTargets.forEach(el => prepareBuild(el,'place'));
+      imgTargets.forEach(el => prepareBuild(el,'img'));
+      chipTargets.forEach(el => prepareBuild(el,'chip'));
+    }
+
+    const seen = new WeakSet();
+    function scheduleBuild(el) {
+      if (seen.has(el)) return;
+      seen.add(el);
+      const kind = el.dataset.build || (el.matches('img,.dc-avatar,.logo-img,.nav-logo') ? 'img' : 'place');
+      enqueue(async () => {
+        if (kind === 'type') await buildType(el);
+        else if (kind === 'img') await buildImage(el);
+        else if (kind === 'chip') await buildChip(el);
+        else await buildPlace(el);
+      });
+    }
+
+    async function buildElementDirect(el) {
+      if (seen.has(el)) return;
+      seen.add(el);
+      const kind = el.dataset.build || (el.matches('img,.dc-avatar,.logo-img,.nav-logo,.dc-banner-img') ? 'img' : 'place');
+      if (kind === 'type') await buildType(el);
+      else if (kind === 'img') await buildImage(el);
+      else if (kind === 'chip') await buildChip(el);
+      else await buildPlace(el);
+    }
+
+    let _scrollLock = null;
+    function lockScroll() {
+      if (_scrollLock) return;
+      const prevent = (e) => { e.preventDefault(); };
+      const keys = (e) => { if(['ArrowUp','ArrowDown','Space','PageUp','PageDown','Home','End'].includes(e.code)) e.preventDefault(); };
+      window.addEventListener('wheel', prevent, {passive:false});
+      window.addEventListener('touchmove', prevent, {passive:false});
+      window.addEventListener('keydown', keys, {passive:false});
+      _scrollLock = () => {
+        window.removeEventListener('wheel', prevent);
+        window.removeEventListener('touchmove', prevent);
+        window.removeEventListener('keydown', keys);
+        _scrollLock = null;
+      };
+    }
+    function unlockScroll() { if (_scrollLock) _scrollLock(); }
+
+    function revealAll() {
+      unlockScroll();
+      const bc = document.getElementById('figmaCanvas');
+      if (bc) bc.classList.add('hidden');
+      document.body.classList.remove('building');
+      // safety: make sure everything is visible
+      document.querySelectorAll('.build-pending').forEach(el => {
+        if (!el.classList.contains('built-visible')) {
+          if (el.dataset.fulltext && !el.textContent.trim()) el.textContent = el.dataset.fulltext;
+          el.classList.add('built-visible');
+        }
+      });
+      try { window.scrollTo({top:0, behavior:'auto'}); } catch(e){}
+    }
+
+    async function startFullBuild() {
+      lockScroll();
+      const safety = setTimeout(revealAll, 35000); // never leave user stuck
+      try {
+        const all = Array.from(document.querySelectorAll('[data-build], .build-pending'));
+        const _seen = new Set();
+        const uniq = all.filter(el => { if (_seen.has(el)) return false; _seen.add(el); return true; });
+        for (const el of uniq) {
+          if (seen.has(el) || el.dataset.built) continue;
+          try { el.scrollIntoView({block:'center', behavior:'instant'}); } catch(e){}
+          await wait(60);
+          await buildElementDirect(el);
+          await wait(30);
+        }
+        await wait(400);
+      } catch(e) {
+        console.error('Build error', e);
+      } finally {
+        clearTimeout(safety);
+        revealAll();
+      }
+    }
+
+    // Figma-style build: lock scroll, let 5 cursors build everything in order
+    if (!reduce) {
+      document.body.classList.add('building');
+      const startBuild = () => { startFullBuild().catch(e=>{ console.error(e); revealAll(); }); };
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(startBuild, 60));
+      else setTimeout(startBuild, 60);
+      // absolute fallback
+      setTimeout(()=>{ if (document.body.classList.contains('building')) revealAll(); }, 45000);
+    } else {
+      document.querySelectorAll('.build-pending').forEach(el=>el.classList.add('built-visible'));
+      const bc=document.getElementById('figmaCanvas'); if(bc) bc.classList.add('hidden');
+    }
+  </script>
+</body>
+</html>
