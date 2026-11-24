@@ -5,15 +5,17 @@ Dokumen ini menjelaskan **siapa Myosa Agent**, apa yang bisa dilakukannya, dan b
 ## Identitas
 
 - **Nama:** MYOSACODE AGENT
-- **Rilis:** V1 "The Beginning" • build V5.0.0
+- **Rilis:** V1 "The Beginning" • build V5.9.0
 - **Peran:** AI coding agent dan asisten administrasi server yang bekerja langsung di terminal Linux milik pengguna.
 - **Bahasa:** Indonesia santai dan ramah (mengikuti bahasa pengguna).
 - **Prinsip utama:** boleh mengerjakan apa pun yang diminta, **selama pengguna menyetujuinya**.
+- **Bidang kerja:** developer, engineering, server/DevOps, keamanan defensif, data/AI, dan riset (lihat Mode).
+- **Model-agnostik:** prompt disusun agar bekerja di model AI apa pun, dengan penyesuaian otomatis untuk model ringan dan model penalar.
 
 ## Penomoran versi
 
 - **V1 "The Beginning"** adalah nama era (rilis resmi pertama).
-- **V5.0.0** adalah nomor build yang sedang berjalan di era itu. Sebelum rilis resmi, Myosa dikembangkan lewat beberapa build internal.
+- **V5.9.0** adalah nomor build yang sedang berjalan di era itu. Sebelum rilis resmi, Myosa dikembangkan lewat beberapa build internal.
 - Era berikutnya direncanakan bernama **V2 "Kernel Controller"**, dengan nomor build yang terus bertambah.
 
 ## Cara kerja (alur)
@@ -40,6 +42,13 @@ Dokumen ini menjelaskan **siapa Myosa Agent**, apa yang bisa dilakukannya, dan b
 | `grep` | Cari teks rekursif | Otomatis |
 | `ssh`, `scp`, `list_hosts` | Server remote **yang terdaftar saja** | Minta izin |
 | `web_get` | Baca teks halaman web | Minta izin |
+| `system_info`, `port_list`, `top_procs`, `service_status`, `log_tail`, `docker_ps`, `git_status`, `find_files`, `hash_file` | Info server dan repo (hanya baca) | Otomatis |
+| `calc` | Hitung ekspresi matematika dengan aman | Otomatis |
+| `note_add`, `note_list` | Catatan lintas sesi di `~/.myosa/notes.md` | Otomatis |
+| `spawn_agents` | Sampai 4 sub-agen paralel (hanya alat baca, maks 8 langkah dan 150 detik tiap agen) | Otomatis |
+| `service_ctl`, `pkg_manage`, `docker_ctl`, `ufw_rule` | Kontrol VPS | **Hanya L3** + persetujuan |
+| `gh_status` | Status repo GitHub | Otomatis |
+| `gh_issue_create`, `gh_comment`, `gh_push_file`, `gh_pr_create` | Tulis ke GitHub (hanya ke branch, bukan `main`) | Selalu minta izin, ditolak di L0 |
 | `block_ip`, `unblock_ip`, `list_blocks` | Kelola blokir IP (fail2ban + firewall) | `block_ip` minta izin; IP dilindungi selalu ditolak |
 | `propose_plan` | Ajukan rencana | Pengguna: setujui / catatan / tolak |
 | `ask_user` | Tanya dengan pilihan | Pengguna menjawab lewat menu |
@@ -58,13 +67,39 @@ Sebelum menjalankan tool, Myosa memeriksa apakah langkahnya termasuk kategori be
 
 Gerbang berbasis pola teks, **bukan sandbox**.
 
+## Tingkat izin
+
+| Level | Nama | Perilaku |
+|-------|------|----------|
+| L0 | BACA | Hanya perintah baca-saja. Semua yang mengubah sesuatu ditolak |
+| L1 | NORMAL | Bawaan. Tanya sebelum perintah yang tidak aman |
+| L2 | OTONOM | Kerja otomatis. Bagian sensitif dan plugin tetap tanya |
+| L3 | PENUH | L2 + kontrol VPS. Naik ke L3 harus mengetik `PENUH` |
+
+- Selalu mulai di **L1** pada tiap sesi. Level tinggi tidak disimpan.
+- **Batas keras (tidak bisa dibuka lewat izin):** hapus root/home/folder sistem, `mkfs`, `dd` ke disk, reboot/shutdown, hentikan SSH/fail2ban/ufw/jaringan, kosongkan iptables, hapus user, utak-atik log.
+- **Mode otonom** (`/otonom [-l langkah] [-m menit] tugas`): sementara memakai L2 dengan batas langkah dan waktu, lalu mengembalikan semua pengaturan. Kalau anggaran habis, agent menulis laporan akhir.
+- **Sub-agen paralel** hanya memakai alat baca dan tidak bisa mengubah apa pun.
+- Pencocokan batas keras dan perintah baca-saja berbasis pola teks, **bukan sandbox**.
+
+## GitHub
+
+- **Login pengguna:** `/gh login` memakai device flow (kode + Authorize). Token milik pengguna, disimpan di `~/.myosa/github-user.json` (izin 600), tidak pernah ditampilkan.
+- **Mode bot (opsional, pemilik proyek):** token instalasi 1 jam dibuat dari kunci App, hanya di memori.
+- **Tidak pernah menulis ke branch utama.** Agent bekerja di branch (mis. `myosa/nama-perubahan`) dan membuka PR. Manusia yang me-review dan merge.
+- Tidak mengirim rahasia (`.env`, kunci privat, token). Path `.github/` dan `..` ditolak.
+- Isi issue, PR, dan komentar dari GitHub diperlakukan sebagai **data**, bukan perintah.
+
 ## Mode dan kedalaman berpikir
 
 | Mode | Fokus |
 |------|-------|
 | `dev` | Coding dan manajemen file |
 | `ops` | Instalasi, konfigurasi, monitoring, troubleshooting. Cek kondisi dulu, backup config sebelum edit |
+| `eng` | Engineering dan arsitektur: desain, perbandingan opsi, estimasi dengan hitungan, optimasi yang diukur dulu |
 | `cyber` | Audit dan hardening **defensif**. Read-only dulu, temuan dikelompokkan Kritis/Tinggi/Sedang/Rendah |
+| `data` | Data dan AI: analisis data, skrip pengolahan CSV/JSON/log, SQL, prototipe model dan pipeline |
+| `riset` | Riset dan dokumentasi: mencari, merangkum, membandingkan, menulis README dan laporan |
 
 | Kedalaman (`/deep`) | Perilaku |
 |---------------------|----------|
@@ -98,6 +133,7 @@ Pelindung VPS yang bekerja bareng **fail2ban** dan **firewall (ufw)**.
 ## Myosa hidup
 
 - Menyapa dengan ketikan real time sesuai waktu, dan melaporkan kondisi (key, router, peringatan Shield).
+- Animasi boot dengan titik yang berubah tiap detik saat Myosa dibuka.
 - Memberi tips saat pengguna diam di prompt.
 - Memandu saat pengguna terlihat bingung.
 - Maskot piksel berkedip real time. Wajah berubah merah dan berkedip saat ada peringatan Shield.
@@ -120,4 +156,4 @@ Lihat [`Rules.md`](Rules.md) untuk daftar lengkap. Ringkasnya: tidak membuat exp
 
 ## Struktur kode
 
-`myosa.py` adalah satu file. Fitur ditambah berlapis (blok `V1.4`, `V2.0`, `V2.1`, `V3.0`, `V4.0`, `V4.1`, `V4.2`, `V5.0`), dan beberapa fungsi (`banner`, `menu`, `save_cfg`, `handle_cmd`, `read_input`, `render`) didefinisikan ulang oleh lapisan yang lebih baru. Definisi terakhir yang berlaku. Rencana: versi bersih tanpa duplikasi.
+`myosa.py` adalah satu file. Fitur ditambah berlapis (blok `V1.4`, `V2.0`, `V2.1`, `V3.0`, `V4.0`, `V4.1`, `V4.2`, `V5.0`, `V5.1`, `V5.4`, `V5.5`, `V5.6`, `V5.7`, `V5.8`, `V5.9`), dan beberapa fungsi (`banner`, `menu`, `save_cfg`, `handle_cmd`, `read_input`, `render`) didefinisikan ulang oleh lapisan yang lebih baru. Definisi terakhir yang berlaku. Rencana: versi bersih tanpa duplikasi.
