@@ -168,7 +168,7 @@ Skrip ini membuat venv sendiri, memasang Myosa, lalu membuat perintah `myosa`. P
 
 ```bash
 # Ubuntu 24.04 / Debian 12 melarang pip ke Python sistem, jadi pakai pipx:
-apt install -y pipx && pipx ensurepath
+apt install -y pipx && pipx ensurepath   # lalu buka sesi SSH baru (atau: source ~/.bashrc)
 pipx install myosa-agent
 ```
 
