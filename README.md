@@ -10,7 +10,7 @@
 
 <br>
 
-![versi](https://img.shields.io/badge/versi-5.10.0-a06bff?style=for-the-badge)
+![versi](https://img.shields.io/badge/versi-5.11.0-a06bff?style=for-the-badge)
 ![python](https://img.shields.io/badge/python-3.10%2B-00b8ff?style=for-the-badge&logo=python&logoColor=white)
 ![platform](https://img.shields.io/badge/Ubuntu%20%2F%20Debian-00ffd5?style=for-the-badge&logo=ubuntu&logoColor=black)
 ![lisensi](https://img.shields.io/badge/lisensi-MIT-6a8cff?style=for-the-badge)
@@ -148,6 +148,27 @@ Tampilan langsung menunjukkan keenam agen dan **papan diskusi** tempat mereka sa
 │ 🔧 Pembangun-1 → Penguji [jawab]: ...  │
 ╰───────────────────────────────────────╯
 ```
+
+**Terminal sendiri untuk tiap agen (V5.11):** setiap agen punya tampilan berbeda, dirender live berdampingan.
+
+| Agen | Tampilan |
+|------|----------|
+| 🧭 Arsitek | peta file (siapa memegang file apa) dan pohon rencana |
+| 🔎 Peneliti | terminal: `$ perintah` lalu hasilnya |
+| 🔧 Pembangun-1, 🔨 Pembangun-2 | editor kode dengan nomor baris dan kursor yang mengetik |
+| 🐞 Penguji | konsol uji: `▶ cek_sintaks`, `✔`/`✖`, lencana LULUS atau jumlah bug |
+| 🔒 Keamanan | laporan pindai: temuan dan statusnya |
+
+Tata letak menyesuaikan layar: 3x2 (lebar 110+), 2x3 (72+), dan di HP/layar sempit daftar 6 agen plus 2 terminal agen yang paling aktif.
+
+```text
+/tim layar auto|grid|fokus|ringkas   pilih tata letak
+/tim terminal [peran]                putar ulang terminal satu agen (atau semua) setelah selesai
+/tim tmux                            terminal NATIVE: jendela tmux 6 pane, satu per agen (jalankan myosa di dalam tmux)
+/tim auto on|off                     tiap tugas kode/file dari kamu otomatis dibagikan Myosa ke tim
+```
+
+Log live tiap agen juga ditulis ke `~/.myosa/team/live/<peran>.log` (rahasia disamarkan, tidak ditulis di izin L0), jadi bisa di-`tail -F` di tab Termius terpisah.
 
 **Ronde:** 1 kerja, 2 tinjau, 3 perbaiki dan periksa ulang (bawaan 3, maksimal 5). Tim berhenti lebih awal kalau penguji menyatakan lulus dan tidak ada bug terbuka.
 
