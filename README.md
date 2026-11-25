@@ -10,7 +10,7 @@
 
 <br>
 
-![versi](https://img.shields.io/badge/versi-5.9.0-a06bff?style=for-the-badge)
+![versi](https://img.shields.io/badge/versi-5.10.0-a06bff?style=for-the-badge)
 ![python](https://img.shields.io/badge/python-3.10%2B-00b8ff?style=for-the-badge&logo=python&logoColor=white)
 ![platform](https://img.shields.io/badge/Ubuntu%20%2F%20Debian-00ffd5?style=for-the-badge&logo=ubuntu&logoColor=black)
 ![lisensi](https://img.shields.io/badge/lisensi-MIT-6a8cff?style=for-the-badge)
@@ -35,7 +35,8 @@
 | 🧩 **Plugin dan `/evolve`** | Minta fitur baru, Myosa menulisnya sebagai plugin terpisah. Inti tidak tersentuh. |
 | 🔐 **Tingkat izin L0-L3** | Kamu yang menentukan seberapa jauh agent boleh bertindak: hanya baca, normal, otonom, sampai kontrol penuh VPS. Selalu mulai di L1. |
 | 🤖 **Mode otonom** | `/otonom` mengerjakan tugas panjang sendiri dengan batas langkah dan waktu. Bagian sensitif tetap berhenti dan bertanya. |
-| 👥 **Agen paralel** | Sampai 4 sub-agen (hanya baca) menyelidiki hal berbeda sekaligus, lalu hasilnya digabung. |
+| 👥 **Tim 6 sub-agen** | Myosa membagi tugas ke arsitek, peneliti, 2 pembangun, penguji, dan keamanan. Mereka bekerja paralel, saling memberi saran lewat papan diskusi, penguji melaporkan bug dan pembangun memperbaikinya. Hasil hanya usulan sampai kamu menyetujui. |
+| 🔭 **Agen paralel** | Sampai 4 sub-agen (hanya baca) menyelidiki hal berbeda sekaligus, lalu hasilnya digabung. |
 | 🐙 **Login GitHub** | `/gh login` seperti `codex login`: kode, klik Authorize, selesai. Issue, branch, dan PR atas nama akunmu. Tidak pernah menulis ke `main`. |
 | 🧰 **Alat server** | `system_info`, `port_list`, `top_procs`, `git_status`, `find_files`, `calc`, `hash_file`, `service_status`, `log_tail`, `docker_ps`, dan catatan lintas sesi. |
 | 🎯 **Enam mode kerja** | `dev`, `eng`, `ops`, `cyber`, `data`, `riset`. Prompt disusun agar bekerja di semua model AI, bukan satu model saja. |
@@ -118,6 +119,54 @@ Ubah dengan `/izin`. **Setiap Myosa dibuka, izin kembali ke L1.** Level tinggi t
 **Agen paralel:** agent bisa memanggil sampai 4 sub-agen sekaligus (maks 8 langkah dan 150 detik tiap agen, hanya alat baca). Ini mempercepat penyelidikan, tetapi **memperbanyak panggilan API**.
 
 > Catatan jujur: batas keras dan daftar perintah baca-saja di L0 berbasis pola teks, bukan sandbox. Perintah yang disamarkan bisa lolos.
+
+---
+
+## 👥 Tim 6 sub-agen
+
+Untuk tugas besar yang bisa dibagi, Myosa memimpin tim. Dia menulis instruksi untuk tiap peran, agen bekerja **paralel**, lalu saling memeriksa.
+
+| Peran | Tugas |
+|-------|-------|
+| 🧭 Arsitek | Merancang pembagian file dan antarmuka, menjaga agar pembangun tidak bentrok |
+| 🔎 Peneliti | Mencari konteks lewat alat baca (kode, dokumen, web) |
+| 🔧 Pembangun-1 | Menulis file bagiannya ke **staging** |
+| 🔨 Pembangun-2 | Menulis file bagian lain ke **staging** |
+| 🐞 Penguji | Memeriksa sintaks dan logika, melapor bug ke **pemilik file**, menyatakan lulus |
+| 🔒 Keamanan | Meninjau rahasia, injeksi, izin, perintah berbahaya |
+
+Tampilan langsung menunjukkan keenam agen dan **papan diskusi** tempat mereka saling memberi saran:
+
+```text
+╭── 👥 Tim Myosa · ronde 2/3 · tinjau ──╮
+│ ✔ 🧭 Arsitek     selesai · 3 pesan    │
+│ ⠼ 🐞 Penguji     bekerja.. · cek_sintaks │
+╰── 12 pesan · 2 file · bug terbuka 1 ──╯
+╭────────── 💬 Diskusi tim ─────────────╮
+│ 🐞 Penguji → Pembangun-1 [bug]: app.py │
+│ baris 12: KeyError kalau config kosong │
+│ 🔧 Pembangun-1 → Penguji [jawab]: ...  │
+╰───────────────────────────────────────╯
+```
+
+**Ronde:** 1 kerja, 2 tinjau, 3 perbaiki dan periksa ulang (bawaan 3, maksimal 5). Tim berhenti lebih awal kalau penguji menyatakan lulus dan tidak ada bug terbuka.
+
+```text
+/tim <tugas>              jalankan tim (contoh: /tim buat modul kalkulator dengan tes)
+/tim -p 5 <tugas>         jumlah ronde 1-5
+/tim lihat [file]         lihat usulan dan diff terhadap file di disk
+/tim terapkan [file]      tulis usulan ke disk (tiap file tetap minta izin)
+/tim log                  papan diskusi lengkap
+/tim peran                daftar peran
+```
+
+**Aturan keselamatan:**
+- Agen **tidak pernah mengubah file asli**. Pembangun hanya menulis ke staging, yang berupa usulan di memori (arsipnya di `~/.myosa/team/`).
+- Menerapkan usulan ke disk lewat `/tim terapkan` atau `tim_terapkan`, dan **tiap file melewati gerbang persetujuan biasa**. Di izin L0 penerapan ditolak.
+- File yang berubah di disk sejak staging **dilewati**, tidak ditimpa. File inti Myosa, file rahasia, `.git/`, dan `~/.myosa/` tidak bisa ditulis tim.
+- Satu file punya satu pemilik. Agen lain hanya bisa mengirim saran ke pemiliknya.
+- Agen hanya memakai alat baca ditambah alat tim. Tidak ada `bash`, tidak ada tulis ke disk.
+- Biaya: sampai 6 agen x 3 ronde x 6 langkah, **maksimal 180 panggilan API** (biasanya 30 sampai 60). Myosa menanyakan dulu sebelum mulai. Batas waktu 9 menit. Atur kecepatan dengan `MYOSA_TEAM_CONC` (1 sampai 6 panggilan bersamaan) kalau penyedia API-mu membatasi laju.
 
 ---
 
@@ -250,6 +299,7 @@ Nama variabel dibuat dari nama provider: `nama` menjadi `NAMA_API_KEY`.
 | `/shield` | Pelindung VPS |
 | `/izin` | Tingkat izin L0-L3 |
 | `/otonom` | Mode otonom dengan batas langkah dan waktu |
+| `/tim` | Tim 6 sub-agen: `<tugas>`, `lihat`, `terapkan`, `log`, `peran` |
 | `/gh` | GitHub: `login`, `repo`, `status`, `id`, `push`, `pr`, `logout` |
 | `/tools` | Daftar alat yang tersedia |
 | `/sys` | Info server ringkas |
@@ -289,6 +339,7 @@ Nama variabel dibuat dari nama provider: `nama` menjadi `NAMA_API_KEY`.
 - Deteksi port scan butuh langkah **"Catat log firewall"** dari `/shield harden`.
 - `.env.local` adalah **teks biasa** yang dilindungi izin file, bukan enkripsi.
 - Model kecil (mis. varian `flash`) kadang kurang rapi memanggil tool.
+- **Tim 6 sub-agen memakai banyak panggilan API** (sampai 180 per tugas) dan kualitasnya mengikuti model yang kamu pakai. Usulan tim bisa salah, jadi tinjau dengan `/tim lihat` sebelum `/tim terapkan`.
 - **Izin L2 dan L3 melonggarkan agent.** Pakai hanya di server yang kamu pahami, dan awasi di tmux.
 - Sub-agen dan mode otonom **menambah jumlah panggilan API** (biaya dan batas laju).
 - Token login GitHub disimpan sebagai teks di disk (izin file 600). Siapa pun yang punya akses root ke VPS bisa membacanya.
