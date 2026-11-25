@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "myosa-agent"
+dynamic = ["version"]
+description = "AI coding agent untuk terminal Linux, dengan pelindung VPS (Shield) dan persetujuan di setiap langkah berisiko"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Azure Ashiro (reinhald90)" }]
+keywords = ["ai", "agent", "coding-agent", "cli", "terminal", "vps", "security"]
+classifiers = [
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development",
+]
+dependencies = [
+    "openai>=1.0",
+    "rich>=13.0",
+]
+
+[project.optional-dependencies]
+image = ["pillow"]
+
+[project.urls]
+Homepage = "https://github.com/reinhald90/Myosa-Agent"
+Repository = "https://github.com/reinhald90/Myosa-Agent"
+Issues = "https://github.com/reinhald90/Myosa-Agent/issues"
+
+[project.scripts]
+myosa = "myosa_launcher:run"
+
+[tool.setuptools]
+py-modules = ["myosa", "myosa_launcher"]
+
+[tool.setuptools.dynamic]
+version = { attr = "myosa.VERSION" }

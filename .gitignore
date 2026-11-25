@@ -9,3 +9,9 @@ __pycache__/
 *.bak
 __pycache__/
 *.bak-*
+
+# pip / build
+dist/
+build/
+*.egg-info/
+.venv/
