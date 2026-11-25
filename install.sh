@@ -12,6 +12,7 @@
 #   MYOSA_BIN=...           lokasi perintah `myosa` (default: ~/.local/bin)
 #   MYOSA_PIP_ARGS="..."    argumen tambahan untuk pip (mis. --index-url ...)
 #   MYOSA_NO_MODIFY_PATH=1  jangan ubah ~/.bashrc / ~/.zshrc
+#   MYOSA_FORCE=1           lewati penolakan Termux (tanpa jaminan)
 set -euo pipefail
 
 SOURCE="${MYOSA_SOURCE:-git+https://github.com/reinhald90/Myosa-Agent.git}"
@@ -31,10 +32,13 @@ if [ "${1:-}" = "--uninstall" ]; then
   exit 0
 fi
 
-case "$(uname -s)" in
-  Linux|Darwin) ;;
-  *) die "sistem operasi tidak didukung (butuh Linux atau macOS)";;
-esac
+[ "$(uname -s)" = "Linux" ] || die "Myosa khusus Linux (Ubuntu/Debian)."
+if [ -n "${TERMUX_VERSION:-}" ] || case "${PREFIX:-}" in *com.termux*) true;; *) false;; esac; then
+  [ "${MYOSA_FORCE:-0}" = "1" ] || die "Termux tidak didukung. Pakai VPS Ubuntu/Debian lewat Termius. (Paksa dengan MYOSA_FORCE=1, tanpa jaminan.)"
+fi
+if [ -r /etc/os-release ] && ! grep -qiE 'debian|ubuntu' /etc/os-release; then
+  warn "distro ini bukan Ubuntu/Debian. Myosa belum diuji di sini, lanjut dengan risiko sendiri."
+fi
 
 # 1. Python >= 3.10
 PY=""

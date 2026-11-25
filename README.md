@@ -1,12 +1,12 @@
 <div align="center">
 
-<img src="banner.png" alt="MYOSACODE AGENT" width="100%">
+<img src="https://raw.githubusercontent.com/reinhald90/Myosa-Agent/main/banner.png" alt="MYOSACODE AGENT" width="100%">
 
 <br>
 
 **AI coding agent untuk terminal Linux, dengan pelindung VPS bawaan dan persetujuan di setiap langkah berisiko.**
 
-*Satu file Python. Berjalan di VPS lewat SSH. Tampilan piksel.*
+*Satu file Python. Khusus **Ubuntu dan Debian**, dijalankan di VPS lewat SSH (mis. Termius). Tampilan piksel.*
 
 <br>
 
@@ -148,10 +148,33 @@ Aktifkan **branch protection** di `main` pada repomu sebagai lapisan pengaman ke
 
 ## 🚀 Instalasi
 
-Butuh Python 3.10+ (Ubuntu/Debian).
+**Khusus Ubuntu dan Debian**, dijalankan di VPS lewat SSH (misalnya dari HP dengan **Termius**). Butuh Python 3.10+ dan git. Tidak perlu root untuk pemasangan.
+
+> **Tidak didukung:** Termux/Android (native), Windows. Fitur Shield dan kontrol VPS butuh root, systemd, fail2ban, dan ufw. Dari Android, pakai Termius untuk masuk ke VPS-mu.
 
 ```bash
-apt install -y python3-venv git
+apt install -y python3 python3-venv git curl
+```
+
+**Cara 1: satu perintah (disarankan)**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/reinhald90/Myosa-Agent/main/install.sh | bash
+```
+
+Skrip ini membuat venv sendiri, memasang Myosa, lalu membuat perintah `myosa`. Python sistem tidak disentuh. Baca dulu skripnya kalau mau: [`install.sh`](install.sh).
+
+**Cara 2: pipx (dari PyPI)**
+
+```bash
+# Ubuntu 24.04 / Debian 12 melarang pip ke Python sistem, jadi pakai pipx:
+apt install -y pipx && pipx ensurepath
+pipx install myosa-agent
+```
+
+**Cara 3: manual dari source**
+
+```bash
 python3 -m venv ~/myosa-env
 ~/myosa-env/bin/pip install -U openai rich pillow
 
@@ -160,6 +183,16 @@ cd Myosa-Agent
 echo "alias myosa='~/myosa-env/bin/python ~/Myosa-Agent/myosa.py'" >> ~/.bashrc
 source ~/.bashrc
 ```
+
+**Perbarui dan hapus**
+
+```bash
+myosa --version
+myosa --update                                   # Cara 1 dan 2 (sumber: GitHub)
+curl -fsSL https://raw.githubusercontent.com/reinhald90/Myosa-Agent/main/install.sh | bash -s -- --uninstall
+```
+
+`--uninstall` hanya menghapus program. API key dan konfigurasi di `~/.myosa/` tetap ada.
 
 Jalankan di **tmux** supaya sesi dan watcher Shield tidak mati saat koneksi putus:
 
@@ -259,7 +292,7 @@ Nama variabel dibuat dari nama provider: `nama` menjadi `NAMA_API_KEY`.
 - **Izin L2 dan L3 melonggarkan agent.** Pakai hanya di server yang kamu pahami, dan awasi di tmux.
 - Sub-agen dan mode otonom **menambah jumlah panggilan API** (biaya dan batas laju).
 - Token login GitHub disimpan sebagai teks di disk (izin file 600). Siapa pun yang punya akses root ke VPS bisa membacanya.
-- Dirancang untuk Ubuntu/Debian. Belum diuji luas di distro lain.
+- **Khusus Ubuntu dan Debian.** Distro lain, macOS, Windows, dan Termux native tidak didukung dan belum diuji.
 
 ---
 
@@ -291,7 +324,7 @@ Nama variabel dibuat dari nama provider: `nama` menjadi `NAMA_API_KEY`.
 
 <div align="center">
 
-<img src="logo.png" alt="Myosa" width="96">
+<img src="https://raw.githubusercontent.com/reinhald90/Myosa-Agent/main/logo.png" alt="Myosa" width="96">
 
 **MYOSACODE AGENT** · dibuat oleh [reinhald90](https://github.com/reinhald90) (Azure Tech)
 

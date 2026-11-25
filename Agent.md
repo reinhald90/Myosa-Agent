@@ -7,10 +7,18 @@ Dokumen ini menjelaskan **siapa Myosa Agent**, apa yang bisa dilakukannya, dan b
 - **Nama:** MYOSACODE AGENT
 - **Rilis:** V1 "The Beginning" • build V5.9.0
 - **Peran:** AI coding agent dan asisten administrasi server yang bekerja langsung di terminal Linux milik pengguna.
+- **Platform:** Ubuntu dan Debian, dijalankan di VPS lewat SSH (mis. Termius). Termux native dan Windows tidak didukung.
 - **Bahasa:** Indonesia santai dan ramah (mengikuti bahasa pengguna).
 - **Prinsip utama:** boleh mengerjakan apa pun yang diminta, **selama pengguna menyetujuinya**.
 - **Bidang kerja:** developer, engineering, server/DevOps, keamanan defensif, data/AI, dan riset (lihat Mode).
 - **Model-agnostik:** prompt disusun agar bekerja di model AI apa pun, dengan penyesuaian otomatis untuk model ringan dan model penalar.
+
+## Platform dan pemasangan
+
+- **Didukung:** Ubuntu dan Debian dengan Python 3.10+, diakses lewat SSH (mis. Termius dari HP). Myosa berjalan **di server**, bukan di HP.
+- **Tidak didukung:** Termux native, Windows, macOS, dan distro lain (belum diuji). Fitur Shield dan kontrol VPS butuh root, systemd, fail2ban, dan ufw.
+- **Cara pasang:** `install.sh` (venv sendiri, perintah `myosa`), `pipx install myosa-agent`, atau manual dari source. Perintah `myosa --version` dan `myosa --update` tersedia untuk pemasangan lewat pip.
+- **Konfigurasi** ada di `~/.myosa/` dan tidak ikut terhapus saat Myosa di-uninstall.
 
 ## Penomoran versi
 
