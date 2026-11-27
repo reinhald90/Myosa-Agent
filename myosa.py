@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# MYOSACODE AGENT V1 The Beginning • V5.14.0
+# MYOSACODE AGENT V1 The Beginning • V6.0.0
 import os, sys, re, io, json, glob, time, base64, shlex, difflib, atexit, subprocess, select
 try:
     import readline
@@ -28,9 +28,9 @@ try:
 except Exception:
     HAS_PIL = False
 
-VERSION = "5.14.0"
+VERSION = "6.0.0"
 ERA = "V1 The Beginning"
-VERSION_LABEL = "V1 The Beginning • V5.14.0"
+VERSION_LABEL = "V1 The Beginning • V6.0.0"
 console = Console()
 CFG_DIR = os.path.expanduser("~/.myosa")
 CFG_FILE = os.path.join(CFG_DIR, "config.json")
@@ -9117,6 +9117,296 @@ def handle_cmd(q, msgs):
     r = _handle_v63(q, msgs)
     if cmd == "help":
         console.print("[bold #00e0ff]/tokens[/] [dim]cek token terpakai (sesi, per agen, harian) · /tokens hari · /tokens reset[/]")
+    return r
+
+
+# ---------- V6.0 ----------
+# SKILL GAMBAR resmi: AI melukis sendiri (kode SVG) -> dirender ke PNG -> diperiksa (jika model bisa melihat) -> diperbaiki.
+# Opsional: API gambar (MYOSA_IMG_MODEL) atau layanan AI luar (mode "ai", minta izin dulu). Hasil di ~/.myosa/gambar/.
+import xml.etree.ElementTree as _ET
+GAMBAR_DIR = os.path.join(CFG_DIR, "gambar")
+_GM_URL = "https://image.pollinations.ai/prompt/{prompt}?width={w}&height={h}&seed={seed}&nologo=true"
+_GM_NET = [False]
+_GM_SYS = (
+    "Kamu ilustrator profesional yang melukis dengan kode SVG. Keluarkan SATU blok ```svg``` berisi lukisan utuh, tanpa penjelasan lain.\n"
+    "ATURAN TEKNIS: root <svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 {w} {h}\">. Boleh: g, defs, linearGradient, radialGradient, stop, clipPath, mask, "
+    "filter (feGaussianBlur, feDropShadow), rect, circle, ellipse, line, polyline, polygon, path, use (hanya #id internal), text (hanya jika diminta). "
+    "DILARANG: script, image, foreignObject, href ke luar, url() selain #id, @import. Maksimal 14000 karakter.\n"
+    "CARA MELUKIS: (1) Tentukan komposisi: subjek utama besar (60-80% kanvas), satu titik fokus, sudut pandang dramatis. "
+    "(2) Susun lapisan dari belakang: langit/latar bergradien dengan elemen suasana (bintang, awan, kota, cahaya), bayangan tanah, subjek, efek depan (glow, percikan, kabut). "
+    "(3) Subjek: mulai dari siluet yang kuat, bentuk besar dulu, baru detail (panel, sambungan, baut, lipatan). "
+    "(4) Cahaya: satu sumber; sisi terang dan gelap lewat gradien, highlight putih transparan, rim light berwarna, bayangan lembut. "
+    "(5) Palet 4-6 warna selaras dengan kontras tinggi antara subjek dan latar. "
+    "(6) Gaya anime: outline gelap tebal yang konsisten (stroke-linejoin round), warna dua nada bergradasi, mata besar bercahaya. "
+    "Gaya mecha: bentuk geometris simetris, panel armor bersudut, visor atau mata menyala, antena V di kepala, bahu besar, sendi bulat, thruster berpendar, latar dramatis. "
+    "(7) Gambar harus jelas menunjukkan subjek yang diminta, bukan sekadar bentuk bulat atau maskot, dan punya minimal 40 elemen bermakna. "
+    "(8) Jangan menulis teks di dalam gambar kecuali diminta.")
+_GM_TOLAK = re.compile(r"<\s*(script|foreignObject|iframe|embed|object|audio|video|image)\b|\son\w+\s*=|javascript:|<!ENTITY|<!DOCTYPE|@import|\bhref\s*=\s*[\"'](?!#)", re.I)
+
+
+def _gm_ukuran(s):
+    s = (s or "").lower()
+    m = re.search(r"(\d{3,4})\s*[x×]\s*(\d{3,4})", s)
+    if m:
+        w, h = int(m.group(1)), int(m.group(2))
+    elif "potret" in s or "portrait" in s:
+        w, h = 832, 1216
+    elif "lanskap" in s or "landscape" in s:
+        w, h = 1216, 832
+    else:
+        w, h = 1024, 1024
+    return max(256, min(2048, w)), max(256, min(2048, h))
+
+
+def _gm_ambil(txt):
+    m = re.search(r"<svg\b.*?</svg\s*>", txt or "", re.S | re.I)
+    return m.group(0) if m else ""
+
+
+def _gm_bersih(svg, w, h):
+    if not svg:
+        return None, "tidak ada blok <svg>...</svg>"
+    if len(svg) > 200000:
+        return None, "SVG terlalu besar"
+    if _GM_TOLAK.search(svg):
+        return None, "memuat elemen terlarang (script, image, href luar, entity)"
+    for u in re.findall(r"url\(\s*[\"']?\s*([^)\"'\s]*)", svg):
+        if not u.startswith("#"):
+            return None, "url() luar tidak diizinkan"
+    if "xmlns=" not in svg[:400]:
+        svg = svg.replace("<svg", '<svg xmlns="http://www.w3.org/2000/svg"', 1)
+    try:
+        root = _ET.fromstring(svg)
+    except _ET.ParseError as e:
+        return None, "XML tidak valid: %s" % e
+    if not root.tag.endswith("svg"):
+        return None, "elemen akar bukan svg"
+    if "viewBox" not in svg[:600]:
+        svg = svg.replace("<svg", '<svg viewBox="0 0 %d %d"' % (w, h), 1)
+    return svg, ""
+
+
+def _gm_raster(svg_p, png_p, w, h):
+    cmds = []
+    exe = shutil.which("rsvg-convert")
+    if exe:
+        cmds.append([exe, "-w", str(w), "-h", str(h), "-o", png_p, svg_p])
+    cmds.append([sys.executable, "-c", "import sys,cairosvg; cairosvg.svg2png(url=sys.argv[1], write_to=sys.argv[2], output_width=int(sys.argv[3]), output_height=int(sys.argv[4]))",
+                 svg_p, png_p, str(w), str(h)])
+    for c in cmds:
+        try:
+            r = subprocess.run(c, capture_output=True, timeout=45)
+            if r.returncode == 0 and os.path.isfile(png_p) and os.path.getsize(png_p) > 200:
+                return True
+        except (OSError, subprocess.SubprocessError):
+            pass
+    return False
+
+
+def _gm_panggil(msgs):
+    old = getattr(_TOK_TL, "tag", "obrolan")
+    _TOK_TL.tag = "gambar"
+    try:
+        with console.status("[#a06bff]🎨 melukis...[/]"):
+            r = client.chat.completions.create(model=MODEL, messages=msgs)
+        return r.choices[0].message.content or ""
+    finally:
+        _TOK_TL.tag = old
+
+
+def _gm_unduh(url):
+    if not url.lower().startswith(("https://", "http://")):
+        raise ValueError("URL harus http(s)")
+    rq = urllib.request.Request(url, headers={"User-Agent": "Myosa-Agent"})
+    last = None
+    for _ in range(3):
+        try:
+            with urllib.request.urlopen(rq, timeout=90) as f:
+                return f.read(12_000_000)
+        except Exception as e:
+            last = e
+            time.sleep(1.5)
+    raise last
+
+
+def _gm_ai(desk, gaya, w, h, base):
+    prompt = (desk + (", " + gaya if gaya else ""))[:900]
+    mid = os.environ.get("MYOSA_IMG_MODEL", "").strip()
+    try:
+        if mid:
+            it = client.images.generate(model=mid, prompt=prompt, size="%dx%d" % (w, h)).data[0]
+            data = base64.b64decode(it.b64_json) if getattr(it, "b64_json", None) else _gm_unduh(it.url)
+        else:
+            tpl = os.environ.get("MYOSA_IMG_URL") or _GM_URL
+            if not _GM_NET[0]:
+                if not ask("Kirim deskripsi gambar ke layanan luar (%s)?" % urllib.parse.urlparse(tpl).netloc):
+                    return None, "ditolak user"
+                _GM_NET[0] = True
+            data = _gm_unduh(tpl.format(prompt=urllib.parse.quote(prompt), w=w, h=h, seed=random.randint(1, 10**6)))
+    except Exception as e:
+        return None, "%s: %s" % (type(e).__name__, str(e)[:100])
+    ext = ".png" if data[:4] == b"\x89PNG" else (".jpg" if data[:2] == b"\xff\xd8" else None)
+    if not ext:
+        return None, "balasan bukan gambar"
+    open(base + ext, "wb").write(data)
+    return base + ext, ""
+
+
+def gambar_buat(desk, gaya="", ukuran="", mode="svg", ronde=None):
+    desk = redact(str(desk or "")).strip()[:1500]
+    if not desk:
+        return False, "ERROR: deskripsi kosong", None
+    w, h = _gm_ukuran(ukuran)
+    os.makedirs(GAMBAR_DIR, mode=0o700, exist_ok=True)
+    slug = re.sub(r"[^a-z0-9]+", "-", desk.lower())[:30].strip("-") or "gambar"
+    base = os.path.join(GAMBAR_DIR, "%s-%s" % (time.strftime("%Y%m%d-%H%M%S"), slug))
+    cat = []
+    if mode == "ai":
+        p, e = _gm_ai(desk, gaya, w, h, base)
+        if p:
+            return True, "Gambar AI tersimpan: %s. Sebutkan path ini ke user dan jelaskan singkat." % p, p
+        cat.append("jalur AI gagal (%s), beralih melukis SVG" % e)
+    vis = bool(VISION_HINT.search(MODEL))
+    n = max(1, min(3, int(ronde or (2 if vis else 1))))
+    awal = [{"role": "system", "content": _GM_SYS.format(w=w, h=h)},
+            {"role": "user", "content": "Lukis: %s\nGaya: %s\nKanvas: %dx%d" % (desk, gaya or "bebas, sesuaikan dengan permintaan", w, h)}]
+    msgs, best, dipakai = list(awal), None, 0
+    for r in range(1, n + 1):
+        try:
+            txt = _gm_panggil(msgs)
+        except Exception as e:
+            cat.append("model gagal: %s" % str(e)[:100])
+            break
+        svg, err = _gm_bersih(_gm_ambil(txt), w, h)
+        if err:
+            msgs = msgs + [{"role": "assistant", "content": txt[:3000]}, {"role": "user", "content": "SVG ditolak: %s. Kirim ulang SVG lengkap yang valid." % err}]
+            try:
+                svg, err = _gm_bersih(_gm_ambil(_gm_panggil(msgs)), w, h)
+            except Exception as e:
+                err = str(e)[:100]
+        if err:
+            cat.append("ronde %d gagal: %s" % (r, err))
+            break
+        sp, pp = "%s.r%d.svg" % (base, r), "%s.r%d.png" % (base, r)
+        open(sp, "w", encoding="utf-8").write(svg)
+        ok = _gm_raster(sp, pp, w, h)
+        best, dipakai = (sp, pp if ok else None), r
+        if not ok:
+            cat.append("perender SVG->PNG belum ada")
+            break
+        if r < n:
+            try:
+                url = load_image(pp)[0]
+            except Exception:
+                break
+            msgs = awal + [{"role": "assistant", "content": "```svg\n%s\n```" % svg[:14000]},
+                           {"role": "user", "content": [
+                               {"type": "text", "text": "Ini hasil render lukisanmu untuk permintaan: %s\nNilai jujur: apakah subjek terlihat jelas, bagaimana komposisi, cahaya, detail, warna? "
+                                "Lalu kirim SVG BARU yang lengkap dan lebih baik (perbaiki kekurangan terbesar; jangan mulai dari nol bila dasarnya bagus). Satu blok ```svg```." % desk},
+                               {"type": "image_url", "image_url": {"url": url}}]}]
+    if not best:
+        return False, "GAGAL melukis: %s" % "; ".join(cat), None
+    fs, fp = base + ".svg", base + ".png"
+    shutil.copyfile(best[0], fs)
+    if best[1]:
+        shutil.copyfile(best[1], fp)
+    for r in range(1, n + 1):
+        for ex in (".svg", ".png"):
+            try:
+                os.remove("%s.r%d%s" % (base, r, ex))
+            except OSError:
+                pass
+    if not best[1]:
+        return True, ("SVG tersimpan: %s, tetapi PNG belum bisa dibuat karena belum ada perender. Beri tahu user: apt install -y librsvg2-bin "
+                      "(atau pip install cairosvg), lalu ulangi." % fs), fs
+    cat = [("diperiksa dan diperbaiki (%d ronde)" % dipakai) if dipakai > 1 else "satu ronde"] + cat
+    return True, "Gambar tersimpan: %s (%dx%d, %s; SVG: %s). Sebutkan path ini ke user dan jelaskan singkat apa yang kamu lukis." % (fp, w, h, "; ".join(cat), fs), fp
+
+
+def _gm_lihat(p):
+    if p and p.endswith((".png", ".jpg")) and HAS_PIL:
+        try:
+            view_image(p)
+        except Exception:
+            pass
+
+
+def t_gambar(a):
+    ok, msg, p = gambar_buat(a.get("deskripsi"), str(a.get("gaya") or ""), str(a.get("ukuran") or ""), str(a.get("mode") or "svg"))
+    _gm_lihat(p)
+    return msg
+
+
+def _gm_cmd(arg):
+    a, mode = arg.strip(), "svg"
+    if a.startswith("--ai"):
+        mode, a = "ai", a[4:].strip()
+    m = re.search(r"\b(\d{3,4}x\d{3,4})\b", a)
+    uk = m.group(1) if m else ""
+    if m:
+        a = (a[:m.start()] + a[m.end():]).strip()
+    if not a:
+        console.print("[dim]/gambar [--ai] [1024x1024] <deskripsi>   ·   /galeri[/]")
+        return
+    ok, msg, p = gambar_buat(a, "", uk, mode)
+    console.print(("[green]✔[/] " if ok else "[red]✖[/] ") + escape(msg.split(". Sebutkan")[0]))
+    _gm_lihat(p)
+
+
+def _gm_galeri(arg):
+    fs = sorted(glob.glob(os.path.join(GAMBAR_DIR, "*.png")) + glob.glob(os.path.join(GAMBAR_DIR, "*.jpg")), key=os.path.getmtime, reverse=True)[:12]
+    if not fs:
+        console.print("[dim]galeri kosong · /gambar <deskripsi> untuk melukis[/]")
+        return
+    if arg.strip().isdigit() and 1 <= int(arg) <= len(fs):
+        console.print("[dim]%s[/]" % escape(fs[int(arg) - 1]))
+        _gm_lihat(fs[int(arg) - 1])
+        return
+    for i, f in enumerate(fs, 1):
+        console.print("[#ffd866]%2d[/] %s [dim]%d KB[/]" % (i, escape(os.path.basename(f)), os.path.getsize(f) // 1024))
+    console.print("[dim]/galeri <nomor> untuk melihat · folder: %s[/]" % escape(GAMBAR_DIR))
+
+
+TOOLS.append({"type": "function", "function": {
+    "name": "gambar",
+    "description": ("Lukis gambar, ilustrasi, logo, poster, atau karakter dari deskripsi. AI melukis sendiri dengan SVG, dirender ke PNG, lalu diperiksa dan diperbaiki. "
+                    "Hasil disimpan di ~/.myosa/gambar. Tulis deskripsi yang kaya: subjek, pose, gaya, warna, latar, suasana. Bukan kartu template."),
+    "parameters": {"type": "object", "properties": {
+        "deskripsi": {"type": "string", "description": "apa yang digambar, sedetail mungkin"},
+        "gaya": {"type": "string", "description": "mis. anime, mecha, pixel art, cat air, realis, minimalis"},
+        "ukuran": {"type": "string", "description": "mis. 1024x1024, potret, lanskap"},
+        "mode": {"type": "string", "enum": ["svg", "ai"], "description": "svg (default, AI melukis sendiri) atau ai (generator gambar luar/API)"}},
+        "required": ["deskripsi"]}}})
+DISPATCH["gambar"] = t_gambar
+READ_TOOLS.add("gambar")
+
+_tok_nama_v64 = _tok_nama
+def _tok_nama(tag):
+    return "🎨 Skill Gambar" if tag == "gambar" else _tok_nama_v64(tag)
+
+
+_sp_v64 = system_prompt
+def system_prompt():
+    return _sp_v64() + (
+        "\n## Skill Gambar (V6.0)\n"
+        "- Kalau user minta menggambar, melukis, atau membuat ilustrasi, logo, poster, karakter: panggil alat gambar dengan deskripsi yang kaya (subjek, pose, gaya, warna, latar, suasana). "
+        "Jangan memakai kartu template dan jangan menggambar ulang maskot Myosa kecuali diminta.\n"
+        "- Mode ai hanya bila user minta gambar generatif/fotorealistis atau SVG tidak cukup. Hasil ada di ~/.myosa/gambar; sebutkan path-nya.\n")
+
+
+CMDS.extend(["/gambar", "/galeri"])
+_handle_v64 = handle_cmd
+def handle_cmd(q, msgs):
+    cmd, _, arg = q[1:].partition(" ")
+    if cmd == "gambar":
+        _gm_cmd(arg)
+        return None
+    if cmd == "galeri":
+        _gm_galeri(arg)
+        return None
+    r = _handle_v64(q, msgs)
+    if cmd == "help":
+        console.print("[bold #00e0ff]/gambar[/] [dim]AI melukis sendiri (SVG→PNG) · --ai untuk generator luar · /galeri untuk daftar hasil[/]")
     return r
 
 
